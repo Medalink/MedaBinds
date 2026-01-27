@@ -69,9 +69,9 @@ local DEFAULT_DB = {
         showMinimapButton = true,
     },
 
-    -- Minimap button position
+    -- Minimap button position (LibDBIcon format)
     minimapButton = {
-        position = 225,  -- Angle around minimap (degrees)
+        hide = false,
     },
 }
 
@@ -297,120 +297,59 @@ eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 -- Minimap Button
 -- ============================================================================
 
-local minimapButton = nil
+-- LibDBIcon minimap button
+local LDB = LibStub("LibDataBroker-1.1", true)
+local LDBIcon = LibStub("LibDBIcon-1.0", true)
+local minimapDataObj = nil
 
 local function CreateMinimapButton()
-    if minimapButton then return minimapButton end
-
-    local button = CreateFrame("Button", "MedaBindsMinimapButton", Minimap)
-    button:SetSize(32, 32)
-    button:SetFrameStrata("MEDIUM")
-    button:SetFrameLevel(8)
-    button:SetClampedToScreen(true)
-    button:SetMovable(true)
-    button:RegisterForDrag("LeftButton")
-    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-
-    -- Button textures
-    local overlay = button:CreateTexture(nil, "OVERLAY")
-    overlay:SetSize(53, 53)
-    overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
-    overlay:SetPoint("TOPLEFT")
-
-    local background = button:CreateTexture(nil, "BACKGROUND")
-    background:SetSize(24, 24)
-    background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
-    background:SetPoint("CENTER", 1, 1)
-
-    local icon = button:CreateTexture(nil, "ARTWORK")
-    icon:SetSize(20, 20)
-    icon:SetPoint("CENTER", 0, 0)
-    icon:SetTexture("Interface\\AddOns\\MedaBinds\\Media\\binding-chain")
-    button.icon = icon
-
-    -- Highlight texture
-    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
-    highlight:SetSize(24, 24)
-    highlight:SetPoint("CENTER", 0, 0)
-    highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
-    highlight:SetBlendMode("ADD")
-
-    -- Position update function
-    local function UpdatePosition()
-        local angle = math.rad(MedaBinds.db.minimapButton.position)
-        local x = math.cos(angle) * 80
-        local y = math.sin(angle) * 80
-        button:ClearAllPoints()
-        button:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    if minimapDataObj then return minimapDataObj end
+    if not LDB or not LDBIcon then
+        print("|cFFFF0000MedaBinds:|r LibDBIcon not available, minimap button disabled.")
+        return nil
     end
 
-    -- Dragging
-    button:SetScript("OnDragStart", function(self)
-        self.isDragging = true
-    end)
-
-    button:SetScript("OnDragStop", function(self)
-        self.isDragging = false
-    end)
-
-    button:SetScript("OnUpdate", function(self)
-        if not self.isDragging then return end
-
-        local mx, my = Minimap:GetCenter()
-        local cx, cy = GetCursorPosition()
-        local scale = Minimap:GetEffectiveScale()
-        cx, cy = cx / scale, cy / scale
-
-        local angle = math.deg(math.atan2(cy - my, cx - mx))
-        MedaBinds.db.minimapButton.position = angle
-        UpdatePosition()
-    end)
-
-    -- Click handlers
-    button:SetScript("OnClick", function(self, btn)
-        if btn == "LeftButton" then
-            if MedaBinds.SettingsPanel then
-                MedaBinds.SettingsPanel:Toggle()
+    minimapDataObj = LDB:NewDataObject("MedaBinds", {
+        type = "launcher",
+        icon = "Interface\\AddOns\\MedaBinds\\Media\\binding-chain",
+        OnClick = function(self, button)
+            if button == "LeftButton" then
+                if MedaBinds.SettingsPanel then
+                    MedaBinds.SettingsPanel:Toggle()
+                end
+            elseif button == "RightButton" then
+                if MedaBinds.ConfigMode then
+                    MedaBinds.ConfigMode:Toggle()
+                end
             end
-        elseif btn == "RightButton" then
-            if MedaBinds.ConfigMode then
-                MedaBinds.ConfigMode:Toggle()
-            end
-        end
-    end)
+        end,
+        OnTooltipShow = function(tooltip)
+            tooltip:AddLine("MedaBinds", 0.9, 0.7, 0.15)
+            tooltip:AddLine(" ")
+            tooltip:AddLine("Left-click: Open settings", 0.8, 0.8, 0.8)
+            tooltip:AddLine("Right-click: Toggle config mode", 0.8, 0.8, 0.8)
+            tooltip:AddLine("Drag: Move button", 0.5, 0.5, 0.5)
+        end,
+    })
 
-    -- Tooltip
-    button:SetScript("OnEnter", function(self)
-        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-        GameTooltip:AddLine("MedaBinds", 0.9, 0.7, 0.15)
-        GameTooltip:AddLine(" ")
-        GameTooltip:AddLine("Left-click: Open settings", 0.8, 0.8, 0.8)
-        GameTooltip:AddLine("Right-click: Toggle config mode", 0.8, 0.8, 0.8)
-        GameTooltip:AddLine("Drag: Move button", 0.5, 0.5, 0.5)
-        GameTooltip:Show()
-    end)
+    LDBIcon:Register("MedaBinds", minimapDataObj, MedaBinds.db.minimapButton)
 
-    button:SetScript("OnLeave", function(self)
-        GameTooltip:Hide()
-    end)
-
-    minimapButton = button
-    UpdatePosition()
-
-    return button
+    return minimapDataObj
 end
 
 -- Show/hide minimap button
 function MedaBinds:SetMinimapButtonShown(show)
+    if not LDBIcon then return end
+
     if show then
-        if not minimapButton then
+        if not minimapDataObj then
             CreateMinimapButton()
         end
-        minimapButton:Show()
+        LDBIcon:Show("MedaBinds")
+        self.db.minimapButton.hide = false
     else
-        if minimapButton then
-            minimapButton:Hide()
-        end
+        LDBIcon:Hide("MedaBinds")
+        self.db.minimapButton.hide = true
     end
 end
 

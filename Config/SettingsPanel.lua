@@ -1907,7 +1907,7 @@ RefreshIconList = function()
             })
             colHeader:SetBackdropColor(unpack(THEME.rowSubheader))
 
-            local colWidths = { 180, 80, 70 }
+            local colWidths = { 260, 120, 160 }
             local colLabels = { "Spell", "Keybind", "Source" }
             local xPos = 10
 
@@ -2020,7 +2020,7 @@ RefreshIconList = function()
         })
         colHeader:SetBackdropColor(unpack(THEME.rowSubheader))
 
-        local extColWidths = { 180, 80, 70 }
+        local extColWidths = { 240, 180, 120 }
         local extColLabels = { "Frame Name", "Text", "Status" }
         local xPos = 10
 

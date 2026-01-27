@@ -313,7 +313,7 @@ end
 -- Cache for discovered icon frames (refreshed periodically)
 local iconFrameCache = {}
 local iconCacheTime = 0
-local ICON_CACHE_DURATION = 1  -- Refresh every 1 second
+local ICON_CACHE_DURATION = 5  -- Refresh every 5 seconds (scanning is expensive)
 
 -- Helper to check if a frame looks like an icon (generic detection based on properties only)
 local function IsIconLikeFrame(frame)
@@ -363,7 +363,7 @@ end
 
 -- Recursively scan frame and children for icon-like frames
 local function ScanFrameForIcons(frame, results, depth)
-    if not frame or depth > 10 then return end  -- Increased depth limit
+    if not frame or depth > 6 then return end  -- Limit depth to reduce scan time
 
     -- Safety check: wrap all frame method calls in pcall since some UI elements can be in invalid states
     local ok, name = pcall(function() return frame:GetName() end)
@@ -373,10 +373,19 @@ local function ScanFrameForIcons(frame, results, depth)
     if name and type(name) == "string" then
         if name:match("^MedaBinds") then return end
         if name == "WorldFrame" or name == "UIParent" then return end
-        -- Skip tooltip frames and other overlays
+        -- Skip common non-icon UI elements for performance
         if name:match("Tooltip") then return end
         if name:match("^GameMenu") then return end
+        if name:match("^Chat") then return end
+        if name:match("^Minimap") and not name:match("Button") then return end
+        if name:match("^World") then return end
+        if name:match("^Movie") then return end
+        if name:match("^Cinematic") then return end
     end
+
+    -- Skip invisible frames early
+    local ok1, visible = pcall(function() return frame:IsVisible() end)
+    if ok1 and not visible then return end
 
     -- Check if this frame is an icon
     if IsIconLikeFrame(frame) then
@@ -559,6 +568,7 @@ end
 local indicatorFrame = nil
 local hoverHighlight = nil
 local lastHoveredIcon = nil
+local UpdateIndicator  -- Forward declaration
 
 local function CreateIndicator()
     if indicatorFrame then return indicatorFrame end
@@ -635,7 +645,9 @@ local function CreateIndicator()
 
     -- Status text (shows current hovered icon)
     local status = indicatorFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    status:SetPoint("BOTTOM", indicatorFrame, "BOTTOM", 0, 10)
+    status:SetPoint("BOTTOMLEFT", indicatorFrame, "BOTTOMLEFT", 10, 10)
+    status:SetWidth(330)
+    status:SetJustifyH("LEFT")
     status:SetTextColor(unpack(THEME.gold))
     status:SetText("")
     indicatorFrame.status = status
@@ -667,7 +679,7 @@ local function CreateIndicator()
                 self:SetBackdropColor(unpack(THEME.button))
                 self:SetBackdropBorderColor(unpack(THEME.border))
             end
-            btnText:SetTextColor(self.isActive and THEME.gold or THEME.text)
+            btnText:SetTextColor(unpack(self.isActive and THEME.gold or THEME.text))
         end)
 
         btn.SetActive = function(self, active)
@@ -818,7 +830,7 @@ local function UpdateHoverHighlight(icon)
 end
 
 -- Update indicator text
-local function UpdateIndicator()
+UpdateIndicator = function()
     if not indicatorFrame then return end
     local modifier = MedaBinds.db.options.configModifierKey or "ALT"
 
@@ -1003,7 +1015,9 @@ end
 -- Click watcher frame
 local clickWatcher = nil
 local hoverUpdateInterval = 0
-local HOVER_UPDATE_RATE = 0.05  -- Update hover every 50ms
+local HOVER_UPDATE_RATE = 0.1  -- Update hover every 100ms (was 50ms)
+local positionScanInterval = 0
+local POSITION_SCAN_RATE = 0.25  -- Position scan every 250ms (expensive operation)
 
 -- Start watching for clicks and hover
 function ConfigMode:StartClickWatch()
@@ -1030,12 +1044,16 @@ function ConfigMode:StartClickWatch()
 
         -- Throttle hover updates
         hoverUpdateInterval = hoverUpdateInterval + elapsed
-        if hoverUpdateInterval >= HOVER_UPDATE_RATE then
+        positionScanInterval = positionScanInterval + elapsed
+
+        local updateRate = isInspectionMode and POSITION_SCAN_RATE or HOVER_UPDATE_RATE
+        if hoverUpdateInterval >= updateRate then
             hoverUpdateInterval = 0
 
             -- Update hover highlight based on mode
             local icon
             if isInspectionMode then
+                -- Inspection mode: use expensive position scan less frequently
                 icon = GetAnyIconAtCursor()
             else
                 icon = MedaBinds.OverlayManager:GetIconAtCursor()
