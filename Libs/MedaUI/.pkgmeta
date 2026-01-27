@@ -1,0 +1,7 @@
+package-as: MedaUI
+
+ignore:
+  - .github
+  - .gitignore
+  - README.md
+  - .pkgmeta

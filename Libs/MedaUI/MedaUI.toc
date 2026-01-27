@@ -1,0 +1,10 @@
+## Interface: 120001, 120000, 110207
+## Title: Lib: MedaUI
+## Notes: Shared UI library for Medalink's addons
+## Author: Medalink
+## Version: 1.0.0
+## X-Category: Library
+
+Libs\LibStub\LibStub.lua
+MedaUI.lua
+Widgets\Widgets.xml

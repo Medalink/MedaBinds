@@ -1,0 +1,422 @@
+--[[
+    MedaBinds - Core.lua
+    Initialization, events, and slash commands
+]]
+
+-- Create addon namespace
+local addonName, MedaBinds = ...
+_G.MedaBinds = MedaBinds
+
+-- Addon version
+MedaBinds.version = "1.0.0"
+
+-- Default database schema
+local DEFAULT_DB = {
+    version = 1,
+
+    -- Global default style
+    globalStyle = {
+        font = "Fonts\\FRIZQT__.TTF",
+        fontSize = 12,
+        fontFlags = "OUTLINE",
+        color = { r = 1, g = 1, b = 1, a = 1 },
+        shadowEnabled = true,
+        shadowColor = { r = 0, g = 0, b = 0, a = 1 },
+        shadowOffset = { x = 1, y = -1 },
+        anchor = "TOPRIGHT",
+        anchorTo = "TOPRIGHT",
+        offsetX = -2,
+        offsetY = -2,
+    },
+
+    -- Per-spell custom overrides (keyed by spellID)
+    spellOverrides = {},
+
+    -- External icons (from other addons, tracked by frame path)
+    externalIcons = {
+        -- [uniqueKey] = {
+        --     framePath = "ParentFrame.ChildFrame.Icon",  -- Path to re-find the frame
+        --     frameName = "SomeAddonIcon1",               -- Global name if available
+        --     spellID = 12345,                            -- SpellID if detected
+        --     itemID = 67890,                             -- ItemID if detected
+        --     textureID = 123456,                         -- Texture ID for matching
+        --     text = "F1",                                -- Custom keybind text
+        --     useAuto = false,                            -- Use auto-detected keybind
+        --     style = nil,                                -- Style overrides (nil = use global)
+        --     enabled = true,                             -- Whether to show overlay
+        -- }
+    },
+
+    -- Options (defaults - most features enabled)
+    options = {
+        -- Which viewers to show keybinds on (all enabled by default)
+        showOnEssential = true,
+        showOnUtility = true,
+        showOnBuffIcons = true,
+        showOnBuffBars = false,
+
+        -- Auto-detection settings (all enabled by default)
+        enableAutoDetection = true,
+        abbreviateKeybinds = true,
+        scanHiddenBars = true,
+        scanMacros = true,
+
+        -- Config mode
+        configModifierKey = "ALT",
+        autoDisableInCombat = true,
+
+        -- Minimap button
+        showMinimapButton = true,
+    },
+
+    -- Minimap button position
+    minimapButton = {
+        position = 225,  -- Angle around minimap (degrees)
+    },
+}
+
+-- Main event frame
+local eventFrame = CreateFrame("Frame")
+MedaBinds.eventFrame = eventFrame
+
+-- Initialize database
+local function InitializeDB()
+    if not MedaBindsDB then
+        MedaBindsDB = CopyTable(DEFAULT_DB)
+    else
+        -- Migrate/update schema if needed
+        if not MedaBindsDB.version then
+            MedaBindsDB.version = 1
+        end
+
+        -- Ensure all default keys exist
+        for key, value in pairs(DEFAULT_DB) do
+            if MedaBindsDB[key] == nil then
+                MedaBindsDB[key] = CopyTable(value)
+            elseif type(value) == "table" and type(MedaBindsDB[key]) == "table" then
+                -- Deep merge for nested tables
+                for subKey, subValue in pairs(value) do
+                    if MedaBindsDB[key][subKey] == nil then
+                        MedaBindsDB[key][subKey] = type(subValue) == "table" and CopyTable(subValue) or subValue
+                    end
+                end
+            end
+        end
+    end
+
+    MedaBinds.db = MedaBindsDB
+end
+
+-- Get a style value (per-spell override or global default)
+function MedaBinds:GetStyleValue(spellID, key)
+    local override = self.db.spellOverrides[spellID]
+    if override and override.style and override.style[key] ~= nil then
+        return override.style[key]
+    end
+    return self.db.globalStyle[key]
+end
+
+-- Get the full style for a spell (merged with global defaults)
+function MedaBinds:GetSpellStyle(spellID)
+    local style = CopyTable(self.db.globalStyle)
+    local override = self.db.spellOverrides[spellID]
+    if override and override.style then
+        for key, value in pairs(override.style) do
+            style[key] = value
+        end
+    end
+    return style
+end
+
+-- Get keybind text for a spell (custom override or auto-detected)
+function MedaBinds:GetKeybindText(spellID)
+    local override = self.db.spellOverrides[spellID]
+
+    -- Check for custom text override
+    if override and not override.useAuto and override.text then
+        return override.text, "custom"
+    end
+
+    -- Use auto-detected keybind
+    if self.db.options.enableAutoDetection and self.KeybindScanner then
+        local keybind = self.KeybindScanner:GetKeybindForSpell(spellID)
+        if keybind then
+            return keybind, "auto"
+        end
+    end
+
+    return nil, nil
+end
+
+-- Slash command handler
+local function SlashCommandHandler(msg)
+    local cmd = msg:lower():trim()
+
+    if cmd == "" or cmd == "options" or cmd == "settings" then
+        -- Open settings panel (default action)
+        if MedaBinds.SettingsPanel then
+            MedaBinds.SettingsPanel:Toggle()
+        else
+            print("|cFF00FF00MedaBinds:|r Settings panel not yet loaded.")
+        end
+    elseif cmd == "config" then
+        -- Toggle config mode
+        if MedaBinds.ConfigMode then
+            MedaBinds.ConfigMode:Toggle()
+        else
+            print("|cFF00FF00MedaBinds:|r Config mode not yet loaded.")
+        end
+    elseif cmd == "scan" then
+        -- Force rescan keybinds
+        if MedaBinds.KeybindScanner then
+            MedaBinds.KeybindScanner:ForceRescan()
+            print("|cFF00FF00MedaBinds:|r Keybinds rescanned.")
+        end
+    elseif cmd == "reset" then
+        -- Reset all settings with confirmation
+        StaticPopup_Show("MEDABINDS_RESET_CONFIRM")
+    elseif cmd == "debug" then
+        -- Toggle debug mode
+        MedaBinds.debug = not MedaBinds.debug
+        print("|cFF00FF00MedaBinds:|r Debug mode " .. (MedaBinds.debug and "enabled" or "disabled"))
+    elseif cmd == "debugscan" then
+        -- Debug: scan and print found icon frames
+        if MedaBinds.ConfigMode then
+            MedaBinds.ConfigMode:DebugScan()
+        end
+    elseif cmd == "reconnect" then
+        -- Force reconnect external icons
+        if MedaBinds.OverlayManager then
+            MedaBinds.OverlayManager:ForceReconnectExternalIcons()
+        end
+    else
+        -- Show help
+        print("|cFF00FF00MedaBinds Commands:|r")
+        print("  /mbinds - Open settings panel")
+        print("  /mbinds config - Toggle config mode (ALT+click icons)")
+        print("  /mbinds scan - Force rescan keybinds")
+        print("  /mbinds reconnect - Reconnect external icon overlays")
+        print("  /mbinds reset - Reset all settings")
+        print("  /mbinds debugscan - Debug: list detected icon frames")
+    end
+end
+
+-- Reset confirmation dialog
+StaticPopupDialogs["MEDABINDS_RESET_CONFIRM"] = {
+    text = "Are you sure you want to reset all MedaBinds settings? This cannot be undone.",
+    button1 = "Yes",
+    button2 = "No",
+    OnAccept = function()
+        MedaBindsDB = CopyTable(DEFAULT_DB)
+        MedaBinds.db = MedaBindsDB
+
+        -- Refresh overlays
+        if MedaBinds.OverlayManager then
+            MedaBinds.OverlayManager:RefreshAllOverlays()
+        end
+
+        print("|cFF00FF00MedaBinds:|r Settings reset to defaults.")
+    end,
+    timeout = 0,
+    whileDead = true,
+    hideOnEscape = true,
+    preferredIndex = 3,
+}
+
+-- Debug print helper
+function MedaBinds:Debug(...)
+    if self.debug then
+        print("|cFF00FF00MedaBinds Debug:|r", ...)
+    end
+end
+
+-- Event handlers
+local function OnAddonLoaded(self, event, loadedAddon)
+    if loadedAddon ~= addonName then return end
+
+    -- Initialize database
+    InitializeDB()
+
+    -- Register slash commands
+    SLASH_MEDABINDS1 = "/medab"
+    SLASH_MEDABINDS2 = "/mbinds"
+    SlashCmdList["MEDABINDS"] = SlashCommandHandler
+
+    print("|cFF00FF00MedaBinds|r v" .. MedaBinds.version .. " loaded. Type /mbinds for commands.")
+
+    -- Unregister this event
+    eventFrame:UnregisterEvent("ADDON_LOADED")
+end
+
+local function OnPlayerLogin(self, event)
+    -- Initialize keybind scanner
+    if MedaBinds.KeybindScanner then
+        MedaBinds.KeybindScanner:Initialize()
+    end
+
+    -- Initialize overlay manager
+    if MedaBinds.OverlayManager then
+        MedaBinds.OverlayManager:Initialize()
+    end
+
+    -- Initialize config mode
+    if MedaBinds.ConfigMode then
+        MedaBinds.ConfigMode:Initialize()
+    end
+
+    -- Initialize minimap button
+    MedaBinds:InitializeMinimapButton()
+end
+
+local function OnPlayerEnteringWorld(self, event, isInitialLogin, isReloadingUI)
+    -- Refresh overlays after zoning/reload
+    C_Timer.After(0.5, function()
+        if MedaBinds.OverlayManager then
+            MedaBinds.OverlayManager:RefreshAllOverlays()
+        end
+    end)
+end
+
+-- Event dispatcher
+eventFrame:SetScript("OnEvent", function(self, event, ...)
+    if event == "ADDON_LOADED" then
+        OnAddonLoaded(self, event, ...)
+    elseif event == "PLAYER_LOGIN" then
+        OnPlayerLogin(self, event)
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        OnPlayerEnteringWorld(self, event, ...)
+    end
+end)
+
+-- Register events
+eventFrame:RegisterEvent("ADDON_LOADED")
+eventFrame:RegisterEvent("PLAYER_LOGIN")
+eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+
+-- ============================================================================
+-- Minimap Button
+-- ============================================================================
+
+local minimapButton = nil
+
+local function CreateMinimapButton()
+    if minimapButton then return minimapButton end
+
+    local button = CreateFrame("Button", "MedaBindsMinimapButton", Minimap)
+    button:SetSize(32, 32)
+    button:SetFrameStrata("MEDIUM")
+    button:SetFrameLevel(8)
+    button:SetClampedToScreen(true)
+    button:SetMovable(true)
+    button:RegisterForDrag("LeftButton")
+    button:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+
+    -- Button textures
+    local overlay = button:CreateTexture(nil, "OVERLAY")
+    overlay:SetSize(53, 53)
+    overlay:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+    overlay:SetPoint("TOPLEFT")
+
+    local background = button:CreateTexture(nil, "BACKGROUND")
+    background:SetSize(24, 24)
+    background:SetTexture("Interface\\Minimap\\UI-Minimap-Background")
+    background:SetPoint("CENTER", 1, 1)
+
+    local icon = button:CreateTexture(nil, "ARTWORK")
+    icon:SetSize(20, 20)
+    icon:SetPoint("CENTER", 0, 0)
+    icon:SetTexture("Interface\\AddOns\\MedaBinds\\Media\\binding-chain")
+    button.icon = icon
+
+    -- Highlight texture
+    local highlight = button:CreateTexture(nil, "HIGHLIGHT")
+    highlight:SetSize(24, 24)
+    highlight:SetPoint("CENTER", 0, 0)
+    highlight:SetTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
+    highlight:SetBlendMode("ADD")
+
+    -- Position update function
+    local function UpdatePosition()
+        local angle = math.rad(MedaBinds.db.minimapButton.position)
+        local x = math.cos(angle) * 80
+        local y = math.sin(angle) * 80
+        button:ClearAllPoints()
+        button:SetPoint("CENTER", Minimap, "CENTER", x, y)
+    end
+
+    -- Dragging
+    button:SetScript("OnDragStart", function(self)
+        self.isDragging = true
+    end)
+
+    button:SetScript("OnDragStop", function(self)
+        self.isDragging = false
+    end)
+
+    button:SetScript("OnUpdate", function(self)
+        if not self.isDragging then return end
+
+        local mx, my = Minimap:GetCenter()
+        local cx, cy = GetCursorPosition()
+        local scale = Minimap:GetEffectiveScale()
+        cx, cy = cx / scale, cy / scale
+
+        local angle = math.deg(math.atan2(cy - my, cx - mx))
+        MedaBinds.db.minimapButton.position = angle
+        UpdatePosition()
+    end)
+
+    -- Click handlers
+    button:SetScript("OnClick", function(self, btn)
+        if btn == "LeftButton" then
+            if MedaBinds.SettingsPanel then
+                MedaBinds.SettingsPanel:Toggle()
+            end
+        elseif btn == "RightButton" then
+            if MedaBinds.ConfigMode then
+                MedaBinds.ConfigMode:Toggle()
+            end
+        end
+    end)
+
+    -- Tooltip
+    button:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_LEFT")
+        GameTooltip:AddLine("MedaBinds", 0.9, 0.7, 0.15)
+        GameTooltip:AddLine(" ")
+        GameTooltip:AddLine("Left-click: Open settings", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Right-click: Toggle config mode", 0.8, 0.8, 0.8)
+        GameTooltip:AddLine("Drag: Move button", 0.5, 0.5, 0.5)
+        GameTooltip:Show()
+    end)
+
+    button:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
+
+    minimapButton = button
+    UpdatePosition()
+
+    return button
+end
+
+-- Show/hide minimap button
+function MedaBinds:SetMinimapButtonShown(show)
+    if show then
+        if not minimapButton then
+            CreateMinimapButton()
+        end
+        minimapButton:Show()
+    else
+        if minimapButton then
+            minimapButton:Hide()
+        end
+    end
+end
+
+-- Initialize minimap button after db is loaded
+function MedaBinds:InitializeMinimapButton()
+    if self.db.options.showMinimapButton then
+        CreateMinimapButton()
+    end
+end

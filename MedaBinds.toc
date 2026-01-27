@@ -1,0 +1,19 @@
+## Interface: 120001, 120000, 110207
+## Title: MedaBinds
+## Notes: Keybind overlay for Blizzard's Cooldown Manager (EssentialCooldownViewer, UtilityCooldownViewer)
+## Author: Medalink
+## Version: 1.0.0
+## SavedVariables: MedaBindsDB
+## IconTexture: Interface\AddOns\MedaBinds\Media\binding-chain
+
+# Embedded Libraries
+Libs\MedaUI\MedaUI.xml
+
+# Core
+Core\Core.lua
+Core\KeybindScanner.lua
+Core\OverlayManager.lua
+
+# Config
+Config\SettingsPanel.lua
+Config\ConfigMode.lua
