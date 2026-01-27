@@ -99,8 +99,7 @@ MedaBinds includes all required libraries:
 
 ## Supported WoW Versions
 
-- The War Within (12.0+)
-- Dragonflight (11.0+)
+- Midnight (12.0+)
 
 ## License
 
