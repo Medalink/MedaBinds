@@ -269,6 +269,14 @@ local function UpdateIconOverlay(icon, viewerName)
     -- Apply style and text
     ApplyStyleToOverlay(overlay, icon, style)
     overlay:SetText(keybindText)
+
+    -- Check if this is a paged keybind and apply paged color if configured
+    local isPaged = spellID and MedaBinds.KeybindScanner and MedaBinds.KeybindScanner:IsPagedKeybind(spellID)
+    if isPaged and MedaBinds.db.options.pagedKeybindColor then
+        local pagedColor = MedaBinds.db.options.pagedKeybindColor
+        overlay:SetTextColor(pagedColor.r, pagedColor.g, pagedColor.b, pagedColor.a or 1)
+    end
+
     overlay:Show()
 
     -- Show container

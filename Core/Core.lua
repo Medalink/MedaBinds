@@ -61,12 +61,22 @@ local DEFAULT_DB = {
         scanHiddenBars = true,
         scanMacros = true,
 
+        -- Paged keybind settings
+        showPagedKeybinds = true,           -- Enable/disable paged keybind detection
+        pagedKeybindFormat = "auto",        -- "auto", "pagenum", "custom"
+        customPagePrefix = "",              -- Custom prefix for paged keybinds (e.g., "Q→")
+        pagedKeybindColor = { r = 0.7, g = 0.7, b = 0.9, a = 1 },  -- Light blue-ish tint for paged keybinds
+        pageKeybindOverride = "",           -- Manual page switch key for macro-based paging (e.g., "Q")
+
         -- Config mode
         configModifierKey = "ALT",
         autoDisableInCombat = true,
 
         -- Minimap button
         showMinimapButton = true,
+
+        -- Theme (nil = use default)
+        theme = nil,
     },
 
     -- Minimap button position (LibDBIcon format)
@@ -226,7 +236,17 @@ StaticPopupDialogs["MEDABINDS_RESET_CONFIRM"] = {
 -- Debug print helper
 function MedaBinds:Debug(...)
     if self.debug then
-        print("|cFF00FF00MedaBinds Debug:|r", ...)
+        local msg = ""
+        for i = 1, select("#", ...) do
+            local v = select(i, ...)
+            msg = msg .. (i > 1 and " " or "") .. tostring(v)
+        end
+        -- Use MedaDebug if available, otherwise fall back to print
+        if MedaDebugAPI then
+            MedaDebugAPI:DebugMsg("MedaBinds", msg)
+        else
+            print("|cFF00FF00MedaBinds Debug:|r", msg)
+        end
     end
 end
 
@@ -249,6 +269,12 @@ local function OnAddonLoaded(self, event, loadedAddon)
 end
 
 local function OnPlayerLogin(self, event)
+    -- Restore saved theme
+    local MedaUI = LibStub("MedaUI-1.0", true)
+    if MedaUI and MedaBinds.db.options.theme then
+        MedaUI:SetTheme(MedaBinds.db.options.theme)
+    end
+
     -- Initialize keybind scanner
     if MedaBinds.KeybindScanner then
         MedaBinds.KeybindScanner:Initialize()

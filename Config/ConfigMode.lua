@@ -1152,6 +1152,14 @@ end
 CreateEditorFrame = function()
     if editorFrame then return editorFrame end
 
+    -- If the global frame exists from a previous session, destroy it
+    -- This ensures widgets are recreated with current code
+    if _G["MedaBindsIconEditor"] then
+        _G["MedaBindsIconEditor"]:Hide()
+        _G["MedaBindsIconEditor"]:SetParent(nil)
+        _G["MedaBindsIconEditor"] = nil
+    end
+
     local THEME = GetTheme()
 
     local frame = CreateFrame("Frame", "MedaBindsIconEditor", UIParent, "BackdropTemplate")
@@ -1235,20 +1243,28 @@ CreateEditorFrame = function()
     frame.viewerLabel = viewerLabel
     yOffset = yOffset - 26
 
-    -- Auto-detected keybind display (two lines)
+    -- Auto-detected keybind display
     local detectedLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     detectedLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, yOffset)
     detectedLabel:SetText("Keybind: ")
     detectedLabel:SetTextColor(unpack(THEME.text))
     frame.detectedLabel = detectedLabel
-    yOffset = yOffset - 20
+    yOffset = yOffset - 18
 
     local abbreviatedLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     abbreviatedLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, yOffset)
     abbreviatedLabel:SetText("Abbreviated: ")
     abbreviatedLabel:SetTextColor(unpack(THEME.textGreen))
     frame.abbreviatedLabel = abbreviatedLabel
-    yOffset = yOffset - 32
+    yOffset = yOffset - 18
+
+    -- Bar/slot info display
+    local barSlotLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    barSlotLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, yOffset)
+    barSlotLabel:SetText("Location: ")
+    barSlotLabel:SetTextColor(unpack(THEME.textDim))
+    frame.barSlotLabel = barSlotLabel
+    yOffset = yOffset - 28
 
     -- Keybind Text section header
     local keybindSection = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1267,7 +1283,7 @@ CreateEditorFrame = function()
     local useCustomRadio = CreateThemedRadio(frame, THEME)
     useCustomRadio:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, yOffset)
     local useCustomLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    useCustomLabel:SetPoint("LEFT", useCustomRadio, "RIGHT", 8, 0)
+    useCustomLabel:SetPoint("LEFT", frame, "TOPLEFT", 36, yOffset)
     useCustomLabel:SetText("Use custom text")
     useCustomLabel:SetTextColor(unpack(THEME.text))
     useCustomRadio.text = useCustomLabel
@@ -1277,7 +1293,7 @@ CreateEditorFrame = function()
     local useAutoRadio = CreateThemedRadio(frame, THEME)
     useAutoRadio:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, yOffset)
     local useAutoLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    useAutoLabel:SetPoint("LEFT", useAutoRadio, "RIGHT", 8, 0)
+    useAutoLabel:SetPoint("LEFT", frame, "TOPLEFT", 36, yOffset)
     useAutoLabel:SetText("Use auto-detected keybind")
     useAutoLabel:SetTextColor(unpack(THEME.text))
     useAutoRadio.text = useAutoLabel
@@ -1328,7 +1344,7 @@ CreateEditorFrame = function()
     local useGlobalCheck = CreateThemedCheckbox(frame, THEME)
     useGlobalCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 16, yOffset)
     local useGlobalLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    useGlobalLabel:SetPoint("LEFT", useGlobalCheck, "RIGHT", 8, 0)
+    useGlobalLabel:SetPoint("LEFT", frame, "TOPLEFT", 36, yOffset)
     useGlobalLabel:SetText("Use global style defaults")
     useGlobalLabel:SetTextColor(unpack(THEME.text))
     useGlobalCheck.text = useGlobalLabel
@@ -1553,7 +1569,19 @@ UpdateEditorContent = function(spellID, icon)
     if formattedKeybind and rawKeybind and formattedKeybind ~= rawKeybind then
         editorFrame.abbreviatedLabel:SetText("Abbreviated: " .. formattedKeybind)
     else
-        editorFrame.abbreviatedLabel:SetText("Abbreviated: None")
+        editorFrame.abbreviatedLabel:SetText("Abbreviated: " .. (formattedKeybind or "None"))
+    end
+
+    -- Show bar/slot info
+    local slot = MedaBinds.KeybindScanner and MedaBinds.KeybindScanner:GetSlotForSpell(spellID)
+    if not slot and iconSpellInfo and iconSpellInfo.baseSpellID then
+        slot = MedaBinds.KeybindScanner:GetSlotForSpell(iconSpellInfo.baseSpellID)
+    end
+    if slot then
+        local barName, buttonNum = MedaBinds.KeybindScanner:GetBarInfoForSlot(slot)
+        editorFrame.barSlotLabel:SetText("Location: " .. barName .. ", Button " .. buttonNum .. " (Slot " .. slot .. ")")
+    else
+        editorFrame.barSlotLabel:SetText("Location: Not on action bar")
     end
 
     -- Load current override settings
@@ -1588,13 +1616,13 @@ UpdateEditorContent = function(spellID, icon)
     local THEME = GetTheme()
     if hasStyleOverride then
         editorFrame.fontSizeSlider:EnableMouse(true)
-        editorFrame.fontSizeSlider:SetBackdropBorderColor(unpack(THEME.border))
+        editorFrame.fontSizeSlider.slider:SetBackdropBorderColor(unpack(THEME.border))
         editorFrame.fontSizeSlider.thumb:SetColorTexture(unpack(THEME.gold))
         editorFrame.colorPicker:EnableMouse(true)
         editorFrame.colorPicker:SetBackdropBorderColor(unpack(THEME.border))
     else
         editorFrame.fontSizeSlider:EnableMouse(false)
-        editorFrame.fontSizeSlider:SetBackdropBorderColor(unpack(THEME.backgroundDark))
+        editorFrame.fontSizeSlider.slider:SetBackdropBorderColor(unpack(THEME.backgroundDark))
         editorFrame.fontSizeSlider.thumb:SetColorTexture(unpack(THEME.textDim))
         editorFrame.colorPicker:EnableMouse(false)
         editorFrame.colorPicker:SetBackdropBorderColor(unpack(THEME.backgroundDark))
@@ -1640,7 +1668,19 @@ UpdateExternalEditorContent = function(uniqueKey, entry, frame)
     if formattedKeybind and rawKeybind and formattedKeybind ~= rawKeybind then
         editorFrame.abbreviatedLabel:SetText("Abbreviated: " .. formattedKeybind)
     else
-        editorFrame.abbreviatedLabel:SetText("Abbreviated: None")
+        editorFrame.abbreviatedLabel:SetText("Abbreviated: " .. (formattedKeybind or "None"))
+    end
+
+    -- Show bar/slot info for external icons
+    local slot = nil
+    if entry.spellID and MedaBinds.KeybindScanner then
+        slot = MedaBinds.KeybindScanner:GetSlotForSpell(entry.spellID)
+    end
+    if slot then
+        local barName, buttonNum = MedaBinds.KeybindScanner:GetBarInfoForSlot(slot)
+        editorFrame.barSlotLabel:SetText("Location: " .. barName .. ", Button " .. buttonNum .. " (Slot " .. slot .. ")")
+    else
+        editorFrame.barSlotLabel:SetText("Location: External icon")
     end
 
     -- Load current settings
@@ -1672,13 +1712,13 @@ UpdateExternalEditorContent = function(uniqueKey, entry, frame)
     local THEME = GetTheme()
     if hasStyleOverride then
         editorFrame.fontSizeSlider:EnableMouse(true)
-        editorFrame.fontSizeSlider:SetBackdropBorderColor(unpack(THEME.border))
+        editorFrame.fontSizeSlider.slider:SetBackdropBorderColor(unpack(THEME.border))
         editorFrame.fontSizeSlider.thumb:SetColorTexture(unpack(THEME.gold))
         editorFrame.colorPicker:EnableMouse(true)
         editorFrame.colorPicker:SetBackdropBorderColor(unpack(THEME.border))
     else
         editorFrame.fontSizeSlider:EnableMouse(false)
-        editorFrame.fontSizeSlider:SetBackdropBorderColor(unpack(THEME.backgroundDark))
+        editorFrame.fontSizeSlider.slider:SetBackdropBorderColor(unpack(THEME.backgroundDark))
         editorFrame.fontSizeSlider.thumb:SetColorTexture(unpack(THEME.textDim))
         editorFrame.colorPicker:EnableMouse(false)
         editorFrame.colorPicker:SetBackdropBorderColor(unpack(THEME.backgroundDark))

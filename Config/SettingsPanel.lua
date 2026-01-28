@@ -17,9 +17,6 @@ local PANEL_HEIGHT = 550
 -- Get MedaUI library
 local MedaUI = LibStub("MedaUI-1.0")
 
--- Theme Colors (from MedaUI shared library)
-local THEME = MedaUI:GetTheme()
-
 -- Available fonts (built-in WoW fonts + common addon fonts)
 local BUILTIN_FONTS = {
     { name = "Friz Quadrata", path = "Fonts\\FRIZQT__.TTF" },
@@ -177,13 +174,19 @@ local function CreatePanel()
         end
 
         -- Refresh data for the selected tab
-        if tabId == "configuredIcons" then
-            RefreshIconList()
+        local contentFrame = tabContents[tabId]
+        if contentFrame and contentFrame.Refresh then
+            contentFrame.Refresh()
         end
     end
 
-    -- Show first tab
-    tabBar:SetActiveTab("globalStyles")
+    -- Show first tab (TabBar auto-selects first tab before OnTabChanged is set,
+    -- so we need to manually show the content and call refresh)
+    currentTab = "globalStyles"
+    tabContents.globalStyles:Show()
+    if tabContents.globalStyles.Refresh then
+        tabContents.globalStyles.Refresh()
+    end
 
     return panel
 end
@@ -218,7 +221,7 @@ CreateGlobalStylesTab = function(parent)
     local fontLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     fontLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -40)
     fontLabel:SetText("Font:")
-    fontLabel:SetTextColor(unpack(THEME.text))
+    fontLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
     local fontDropdown = MedaUI:CreateDropdown(frame, 250, FONTS)
     fontDropdown:SetPoint("TOPLEFT", fontLabel, "BOTTOMLEFT", 0, -4)
@@ -233,7 +236,7 @@ CreateGlobalStylesTab = function(parent)
     local sizeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     sizeLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -100)
     sizeLabel:SetText("Size:")
-    sizeLabel:SetTextColor(unpack(THEME.text))
+    sizeLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
     local sizeSlider = MedaUI:CreateSlider(frame, 200, 6, 24, 1)
     sizeSlider:SetPoint("TOPLEFT", sizeLabel, "BOTTOMLEFT", 0, -12)
@@ -248,7 +251,7 @@ CreateGlobalStylesTab = function(parent)
     local flagsLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     flagsLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -155)
     flagsLabel:SetText("Outline:")
-    flagsLabel:SetTextColor(unpack(THEME.text))
+    flagsLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
     local flagsDropdown = MedaUI:CreateDropdown(frame, 250, FONT_FLAGS)
     flagsDropdown:SetPoint("TOPLEFT", flagsLabel, "BOTTOMLEFT", 0, -4)
@@ -267,7 +270,7 @@ CreateGlobalStylesTab = function(parent)
     local anchorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     anchorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -255)
     anchorLabel:SetText("Anchor:")
-    anchorLabel:SetTextColor(unpack(THEME.text))
+    anchorLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
     local anchorOptions = {}
     for _, pt in ipairs(ANCHOR_POINTS) do
@@ -288,7 +291,7 @@ CreateGlobalStylesTab = function(parent)
     local offsetXLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     offsetXLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -320)
     offsetXLabel:SetText("Offset X:")
-    offsetXLabel:SetTextColor(unpack(THEME.text))
+    offsetXLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
     local offsetXSlider = MedaUI:CreateSlider(frame, 200, -20, 20, 1)
     offsetXSlider:SetPoint("TOPLEFT", offsetXLabel, "BOTTOMLEFT", 0, -12)
@@ -303,7 +306,7 @@ CreateGlobalStylesTab = function(parent)
     local offsetYLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     offsetYLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -375)
     offsetYLabel:SetText("Offset Y:")
-    offsetYLabel:SetTextColor(unpack(THEME.text))
+    offsetYLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
     local offsetYSlider = MedaUI:CreateSlider(frame, 200, -20, 20, 1)
     offsetYSlider:SetPoint("TOPLEFT", offsetYLabel, "BOTTOMLEFT", 0, -12)
@@ -326,7 +329,7 @@ CreateGlobalStylesTab = function(parent)
     local colorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     colorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN, -40)
     colorLabel:SetText("Text Color:")
-    colorLabel:SetTextColor(unpack(THEME.text))
+    colorLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
     local colorPicker = MedaUI:CreateColorPicker(frame, 26, 26, true)
     colorPicker:SetPoint("LEFT", colorLabel, "RIGHT", 10, 0)
@@ -360,7 +363,7 @@ CreateGlobalStylesTab = function(parent)
         edgeSize = 1,
     })
     previewBg:SetBackdropColor(0.05, 0.05, 0.05, 1)
-    previewBg:SetBackdropBorderColor(unpack(THEME.border))
+    previewBg:SetBackdropBorderColor(unpack(MedaUI.Theme.border))
 
     -- Sample icon background (use addon icon)
     local iconBg = previewBg:CreateTexture(nil, "ARTWORK")
@@ -490,7 +493,7 @@ CreateConfiguredIconsTab = function(parent)
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -10)
     title:SetText("Configured Icons")
-    title:SetTextColor(unpack(THEME.gold))
+    title:SetTextColor(unpack(MedaUI.Theme.gold))
 
     -- Scan keybinds button
     local scanBtn = MedaUI:CreateButton(frame, "Scan Keybinds", 110, 24)
@@ -498,7 +501,7 @@ CreateConfiguredIconsTab = function(parent)
     scanBtn:SetScript("OnClick", function()
         if frame.scanStatus then
             frame.scanStatus:SetText("Scanning...")
-            frame.scanStatus:SetTextColor(unpack(THEME.gold))
+            frame.scanStatus:SetTextColor(unpack(MedaUI.Theme.gold))
         end
 
         -- Use C_Timer to allow UI to update before scan
@@ -520,7 +523,7 @@ CreateConfiguredIconsTab = function(parent)
             -- Update status
             if frame.scanStatus then
                 frame.scanStatus:SetText(string.format("Found %d spells, %d items (%.1fms)", spellCount, itemCount, elapsed))
-                frame.scanStatus:SetTextColor(unpack(THEME.textGreen))
+                frame.scanStatus:SetTextColor(unpack(MedaUI.Theme.textGreen))
             end
 
             -- Refresh the icon list
@@ -541,15 +544,7 @@ CreateConfiguredIconsTab = function(parent)
     -- Scroll frame for icon list (using standard WoW scroll frame)
     local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -45)
-    scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -20, 80)
-
-    -- Hide default scrollbar
-    local scrollBar = scrollFrame.ScrollBar
-    if scrollBar then
-        scrollBar:Hide()
-        scrollBar:SetAlpha(0)
-        scrollBar:EnableMouse(false)
-    end
+    scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -26, 80)
 
     local scrollChild = CreateFrame("Frame", nil, scrollFrame)
     scrollChild:SetSize(PANEL_WIDTH - 60, 1)
@@ -561,14 +556,14 @@ CreateConfiguredIconsTab = function(parent)
     local infoText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     infoText:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", 10, 55)
     infoText:SetText("[Auto] = Detected from action bars  |  [Custom] = User-defined override")
-    infoText:SetTextColor(unpack(THEME.textDim))
+    infoText:SetTextColor(unpack(MedaUI.Theme.textDim))
 
     -- Scan status text (shows results) - positioned at bottom right
     local scanStatus = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     scanStatus:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 55)
     scanStatus:SetJustifyH("RIGHT")
     scanStatus:SetText("")
-    scanStatus:SetTextColor(unpack(THEME.textDim))
+    scanStatus:SetTextColor(unpack(MedaUI.Theme.textDim))
     frame.scanStatus = scanStatus
 
     -- Selected icon display
@@ -637,7 +632,7 @@ CreateConfiguredIconsTab = function(parent)
             local itemCount = MedaBinds.KeybindScanner and MedaBinds.KeybindScanner:GetItemCacheCount() or 0
             if spellCount > 0 or itemCount > 0 then
                 frame.scanStatus:SetText(string.format("Cached: %d spells, %d items", spellCount, itemCount))
-                frame.scanStatus:SetTextColor(unpack(THEME.textDim))
+                frame.scanStatus:SetTextColor(unpack(MedaUI.Theme.textDim))
             end
         end
     end
@@ -676,12 +671,20 @@ RefreshIconList = function()
                     local spellInfo = MedaBinds.OverlayManager:GetSpellInfoFromIcon(child)
                     if spellInfo and not iconListData[spellInfo.spellID] then
                         local keybindText, source = MedaBinds:GetKeybindText(spellInfo.spellID)
+                        local slot = MedaBinds.KeybindScanner and MedaBinds.KeybindScanner:GetSlotForSpell(spellInfo.spellID)
+                        local barName, buttonNum = nil, nil
+                        if slot then
+                            barName, buttonNum = MedaBinds.KeybindScanner:GetBarInfoForSlot(slot)
+                        end
                         local data = {
                             spellID = spellInfo.spellID,
                             name = spellInfo.name,
                             keybind = keybindText or "—",
                             source = source or "none",
                             viewerName = displayName,
+                            slot = slot,
+                            barName = barName,
+                            buttonNum = buttonNum,
                         }
                         iconListData[spellInfo.spellID] = data
                         table.insert(viewerGroups[displayName], data)
@@ -701,12 +704,20 @@ RefreshIconList = function()
             end
             local spellInfo = C_Spell.GetSpellInfo(spellID)
             local keybindText, source = MedaBinds:GetKeybindText(spellID)
+            local slot = MedaBinds.KeybindScanner and MedaBinds.KeybindScanner:GetSlotForSpell(spellID)
+            local barName, buttonNum = nil, nil
+            if slot then
+                barName, buttonNum = MedaBinds.KeybindScanner:GetBarInfoForSlot(slot)
+            end
             local data = {
                 spellID = spellID,
                 name = spellInfo and spellInfo.name or "Unknown",
                 keybind = keybindText or "—",
                 source = source or "custom",
                 viewerName = "Custom",
+                slot = slot,
+                barName = barName,
+                buttonNum = buttonNum,
             }
             iconListData[spellID] = data
             table.insert(viewerGroups["Custom Overrides"], data)
@@ -735,12 +746,12 @@ RefreshIconList = function()
             groupHeader:SetBackdrop({
                 bgFile = "Interface\\Buttons\\WHITE8x8",
             })
-            groupHeader:SetBackdropColor(unpack(THEME.rowHeader))
+            groupHeader:SetBackdropColor(unpack(MedaUI.Theme.rowHeader))
 
             local headerText = groupHeader:CreateFontString(nil, "OVERLAY", "GameFontNormal")
             headerText:SetPoint("LEFT", 8, 0)
             headerText:SetText(viewerDisplayName .. " (" .. #entries .. ")")
-            headerText:SetTextColor(unpack(THEME.gold))
+            headerText:SetTextColor(unpack(MedaUI.Theme.gold))
 
             yOffset = yOffset - headerHeight
 
@@ -751,17 +762,17 @@ RefreshIconList = function()
             colHeader:SetBackdrop({
                 bgFile = "Interface\\Buttons\\WHITE8x8",
             })
-            colHeader:SetBackdropColor(unpack(THEME.rowSubheader))
+            colHeader:SetBackdropColor(unpack(MedaUI.Theme.rowSubheader))
 
-            local colWidths = { 260, 120, 160 }
-            local colLabels = { "Spell", "Keybind", "Source" }
+            local colWidths = { 180, 80, 140, 80 }
+            local colLabels = { "Spell", "Keybind", "Location", "Source" }
             local xPos = 10
 
             for i, label in ipairs(colLabels) do
                 local text = colHeader:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
                 text:SetPoint("LEFT", xPos, 0)
                 text:SetText(label)
-                text:SetTextColor(unpack(THEME.goldDim))
+                text:SetTextColor(unpack(MedaUI.Theme.goldDim))
                 xPos = xPos + colWidths[i]
             end
 
@@ -780,28 +791,30 @@ RefreshIconList = function()
                     bgFile = "Interface\\Buttons\\WHITE8x8",
                 })
                 if currentRowIndex % 2 == 0 then
-                    row:SetBackdropColor(unpack(THEME.rowEven))
+                    row:SetBackdropColor(unpack(MedaUI.Theme.rowEven))
                 else
-                    row:SetBackdropColor(unpack(THEME.rowOdd))
+                    row:SetBackdropColor(unpack(MedaUI.Theme.rowOdd))
                 end
 
                 row:SetScript("OnEnter", function(self)
-                    self:SetBackdropColor(unpack(THEME.highlight))
+                    self:SetBackdropColor(unpack(MedaUI.Theme.highlight))
                 end)
                 row:SetScript("OnLeave", function(self)
                     if currentRowIndex % 2 == 0 then
-                        self:SetBackdropColor(unpack(THEME.rowEven))
+                        self:SetBackdropColor(unpack(MedaUI.Theme.rowEven))
                     else
-                        self:SetBackdropColor(unpack(THEME.rowOdd))
+                        self:SetBackdropColor(unpack(MedaUI.Theme.rowOdd))
                     end
                 end)
 
                 xPos = 10
-                local texts = { data.name, data.keybind, "[" .. data.source .. "]" }
+                local locationText = data.barName and (data.barName .. " #" .. data.buttonNum) or "—"
+                local texts = { data.name, data.keybind, locationText, "[" .. data.source .. "]" }
                 local colors = {
-                    THEME.text,
-                    THEME.textGreen,
-                    data.source == "custom" and THEME.gold or THEME.textDim,
+                    MedaUI.Theme.text,
+                    MedaUI.Theme.textGreen,
+                    MedaUI.Theme.textDim,
+                    data.source == "custom" and MedaUI.Theme.gold or MedaUI.Theme.textDim,
                 }
 
                 for i, text in ipairs(texts) do
@@ -848,12 +861,12 @@ RefreshIconList = function()
         groupHeader:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
         })
-        groupHeader:SetBackdropColor(unpack(THEME.rowHeader))
+        groupHeader:SetBackdropColor(unpack(MedaUI.Theme.rowHeader))
 
         local headerText = groupHeader:CreateFontString(nil, "OVERLAY", "GameFontNormal")
         headerText:SetPoint("LEFT", 8, 0)
         headerText:SetText("External Icons (" .. externalCount .. ")")
-        headerText:SetTextColor(unpack(THEME.gold))
+        headerText:SetTextColor(unpack(MedaUI.Theme.gold))
 
         yOffset = yOffset - headerHeight
 
@@ -864,7 +877,7 @@ RefreshIconList = function()
         colHeader:SetBackdrop({
             bgFile = "Interface\\Buttons\\WHITE8x8",
         })
-        colHeader:SetBackdropColor(unpack(THEME.rowSubheader))
+        colHeader:SetBackdropColor(unpack(MedaUI.Theme.rowSubheader))
 
         local extColWidths = { 240, 180, 120 }
         local extColLabels = { "Frame Name", "Text", "Status" }
@@ -874,7 +887,7 @@ RefreshIconList = function()
             local text = colHeader:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
             text:SetPoint("LEFT", xPos, 0)
             text:SetText(label)
-            text:SetTextColor(unpack(THEME.goldDim))
+            text:SetTextColor(unpack(MedaUI.Theme.goldDim))
             xPos = xPos + extColWidths[i]
         end
 
@@ -905,19 +918,19 @@ RefreshIconList = function()
                 bgFile = "Interface\\Buttons\\WHITE8x8",
             })
             if currentRowIndex % 2 == 0 then
-                row:SetBackdropColor(unpack(THEME.rowEven))
+                row:SetBackdropColor(unpack(MedaUI.Theme.rowEven))
             else
-                row:SetBackdropColor(unpack(THEME.rowOdd))
+                row:SetBackdropColor(unpack(MedaUI.Theme.rowOdd))
             end
 
             row:SetScript("OnEnter", function(self)
-                self:SetBackdropColor(unpack(THEME.highlight))
+                self:SetBackdropColor(unpack(MedaUI.Theme.highlight))
             end)
             row:SetScript("OnLeave", function(self)
                 if currentRowIndex % 2 == 0 then
-                    self:SetBackdropColor(unpack(THEME.rowEven))
+                    self:SetBackdropColor(unpack(MedaUI.Theme.rowEven))
                 else
-                    self:SetBackdropColor(unpack(THEME.rowOdd))
+                    self:SetBackdropColor(unpack(MedaUI.Theme.rowOdd))
                 end
             end)
 
@@ -932,9 +945,9 @@ RefreshIconList = function()
             xPos = 10
             local texts = { displayName, displayText, status }
             local colors = {
-                THEME.text,
-                entry.text and THEME.textGreen or THEME.textDim,
-                entry.enabled ~= false and THEME.textGreen or THEME.textDim,
+                MedaUI.Theme.text,
+                entry.text and MedaUI.Theme.textGreen or MedaUI.Theme.textDim,
+                entry.enabled ~= false and MedaUI.Theme.textGreen or MedaUI.Theme.textDim,
             }
 
             for i, text in ipairs(texts) do
@@ -1008,97 +1021,104 @@ CreateOptionsTab = function(parent)
     frame:SetAllPoints()
     frame:Hide()
 
-    local yOffset = -10
+    -- Layout constants (two-column layout)
+    local LEFT_COLUMN = 15
+    local RIGHT_COLUMN = 320
+    local COLUMN_WIDTH = 280
+
+    -- ============================================
+    -- LEFT COLUMN
+    -- ============================================
+    local leftY = -10
 
     -- Cooldown Viewers section
     local viewerTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    viewerTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
+    viewerTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, leftY)
     viewerTitle:SetText("Cooldown Viewers")
-    viewerTitle:SetTextColor(unpack(THEME.gold))
-    yOffset = yOffset - 25
+    viewerTitle:SetTextColor(unpack(MedaUI.Theme.gold))
+    leftY = leftY - 25
 
-    local essentialCheck = MedaUI:CreateCheckbox(frame, "Show keybinds on Essential Cooldowns")
-    essentialCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    local essentialCheck = MedaUI:CreateCheckbox(frame, "Show on Essential Cooldowns")
+    essentialCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     essentialCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.showOnEssential = checked
         MedaBinds.OverlayManager:RefreshAllOverlays()
     end
     frame.essentialCheck = essentialCheck
-    yOffset = yOffset - 25
+    leftY = leftY - 22
 
-    local utilityCheck = MedaUI:CreateCheckbox(frame, "Show keybinds on Utility Cooldowns")
-    utilityCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    local utilityCheck = MedaUI:CreateCheckbox(frame, "Show on Utility Cooldowns")
+    utilityCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     utilityCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.showOnUtility = checked
         MedaBinds.OverlayManager:RefreshAllOverlays()
     end
     frame.utilityCheck = utilityCheck
-    yOffset = yOffset - 25
+    leftY = leftY - 22
 
-    local buffIconCheck = MedaUI:CreateCheckbox(frame, "Show keybinds on Buff Icons")
-    buffIconCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    local buffIconCheck = MedaUI:CreateCheckbox(frame, "Show on Buff Icons")
+    buffIconCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     buffIconCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.showOnBuffIcons = checked
         MedaBinds.OverlayManager:RefreshAllOverlays()
     end
     frame.buffIconCheck = buffIconCheck
-    yOffset = yOffset - 40
+    leftY = leftY - 35
 
     -- Auto-Detection section
     local autoTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    autoTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
+    autoTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, leftY)
     autoTitle:SetText("Auto-Detection")
-    autoTitle:SetTextColor(unpack(THEME.gold))
-    yOffset = yOffset - 25
+    autoTitle:SetTextColor(unpack(MedaUI.Theme.gold))
+    leftY = leftY - 25
 
-    local enableAutoCheck = MedaUI:CreateCheckbox(frame, "Enable auto-detection from action bars")
-    enableAutoCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    local enableAutoCheck = MedaUI:CreateCheckbox(frame, "Enable auto-detection")
+    enableAutoCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     enableAutoCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.enableAutoDetection = checked
         MedaBinds.OverlayManager:RefreshAllOverlays()
     end
     frame.enableAutoCheck = enableAutoCheck
-    yOffset = yOffset - 25
+    leftY = leftY - 22
 
-    local abbreviateCheck = MedaUI:CreateCheckbox(frame, "Abbreviate keybinds (SHIFT-1 -> S1)")
-    abbreviateCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    local abbreviateCheck = MedaUI:CreateCheckbox(frame, "Abbreviate keybinds (S1)")
+    abbreviateCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     abbreviateCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.abbreviateKeybinds = checked
         MedaBinds.KeybindScanner:ForceRescan()
     end
     frame.abbreviateCheck = abbreviateCheck
-    yOffset = yOffset - 25
+    leftY = leftY - 22
 
-    local scanHiddenCheck = MedaUI:CreateCheckbox(frame, "Include hidden action bars (6-8)")
-    scanHiddenCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    local scanHiddenCheck = MedaUI:CreateCheckbox(frame, "Include hidden bars (6-8)")
+    scanHiddenCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     scanHiddenCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.scanHiddenBars = checked
         MedaBinds.KeybindScanner:ForceRescan()
     end
     frame.scanHiddenCheck = scanHiddenCheck
-    yOffset = yOffset - 25
+    leftY = leftY - 22
 
-    local scanMacrosCheck = MedaUI:CreateCheckbox(frame, "Scan macros for spell keybinds")
-    scanMacrosCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    local scanMacrosCheck = MedaUI:CreateCheckbox(frame, "Scan macros for spells")
+    scanMacrosCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     scanMacrosCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.scanMacros = checked
         MedaBinds.KeybindScanner:ForceRescan()
     end
     frame.scanMacrosCheck = scanMacrosCheck
-    yOffset = yOffset - 40
+    leftY = leftY - 35
 
     -- Config Mode section
     local configTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    configTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
+    configTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, leftY)
     configTitle:SetText("Config Mode")
-    configTitle:SetTextColor(unpack(THEME.gold))
-    yOffset = yOffset - 25
+    configTitle:SetTextColor(unpack(MedaUI.Theme.gold))
+    leftY = leftY - 25
 
-    -- Modifier Key dropdown
     local modifierLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    modifierLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    modifierLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     modifierLabel:SetText("Modifier Key:")
-    modifierLabel:SetTextColor(unpack(THEME.text))
+    modifierLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
     local modifierDropdown = MedaUI:CreateDropdown(frame, 120, MODIFIER_KEYS)
     modifierDropdown:SetPoint("TOPLEFT", modifierLabel, "BOTTOMLEFT", 0, -4)
@@ -1106,30 +1126,200 @@ CreateOptionsTab = function(parent)
         MedaBinds.db.options.configModifierKey = value
     end
     frame.modifierDropdown = modifierDropdown
-    yOffset = yOffset - 55
+    leftY = leftY - 50
 
-    local combatDisableCheck = MedaUI:CreateCheckbox(frame, "Auto-disable config mode in combat")
-    combatDisableCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    local combatDisableCheck = MedaUI:CreateCheckbox(frame, "Auto-disable in combat")
+    combatDisableCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     combatDisableCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.autoDisableInCombat = checked
     end
     frame.combatDisableCheck = combatDisableCheck
-    yOffset = yOffset - 40
+    leftY = leftY - 35
 
     -- Interface section
     local interfaceTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    interfaceTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, yOffset)
+    interfaceTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, leftY)
     interfaceTitle:SetText("Interface")
-    interfaceTitle:SetTextColor(unpack(THEME.gold))
-    yOffset = yOffset - 25
+    interfaceTitle:SetTextColor(unpack(MedaUI.Theme.gold))
+    leftY = leftY - 25
 
     local minimapCheck = MedaUI:CreateCheckbox(frame, "Show minimap button")
-    minimapCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", 15, yOffset)
+    minimapCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
     minimapCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.showMinimapButton = checked
         MedaBinds:SetMinimapButtonShown(checked)
     end
     frame.minimapCheck = minimapCheck
+    leftY = leftY - 30
+
+    local themeLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    themeLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
+    themeLabel:SetText("UI Theme:")
+    themeLabel:SetTextColor(unpack(MedaUI.Theme.text))
+
+    local themeSelector = MedaUI:CreateThemeSelector(frame, 180, {
+        showPreview = true,
+        onChange = function(themeName)
+            MedaBinds.db.options.theme = themeName
+        end
+    })
+    themeSelector:SetPoint("TOPLEFT", themeLabel, "BOTTOMLEFT", 0, -4)
+    frame.themeSelector = themeSelector
+
+    -- ============================================
+    -- RIGHT COLUMN
+    -- ============================================
+    local rightY = -10
+
+    -- Paged Keybinds section
+    local pagedTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    pagedTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN, rightY)
+    pagedTitle:SetText("Paged Keybinds")
+    pagedTitle:SetTextColor(unpack(MedaUI.Theme.gold))
+    rightY = rightY - 25
+
+    local showPagedCheck = MedaUI:CreateCheckbox(frame, "Show keybinds on other pages")
+    showPagedCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    showPagedCheck.OnValueChanged = function(_, checked)
+        MedaBinds.db.options.showPagedKeybinds = checked
+        MedaBinds.KeybindScanner:ForceRescan()
+    end
+    frame.showPagedCheck = showPagedCheck
+    rightY = rightY - 25
+
+    -- Paged keybind format dropdown
+    local pagedFormatLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    pagedFormatLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    pagedFormatLabel:SetText("Format:")
+    pagedFormatLabel:SetTextColor(unpack(MedaUI.Theme.text))
+
+    local pagedFormatOptions = {
+        { label = "Auto-detect (Q>E)", value = "auto" },
+        { label = "Page number (P2>E)", value = "pagenum" },
+        { label = "Custom prefix", value = "custom" },
+    }
+
+    local pagedFormatDropdown = MedaUI:CreateDropdown(frame, 180, pagedFormatOptions)
+    pagedFormatDropdown:SetPoint("TOPLEFT", pagedFormatLabel, "BOTTOMLEFT", 0, -4)
+    pagedFormatDropdown.OnValueChanged = function(_, value)
+        MedaBinds.db.options.pagedKeybindFormat = value
+        -- Show/hide custom prefix editbox
+        if frame.customPrefixLabel and frame.customPrefixEditBox then
+            if value == "custom" then
+                frame.customPrefixLabel:Show()
+                frame.customPrefixEditBox:Show()
+            else
+                frame.customPrefixLabel:Hide()
+                frame.customPrefixEditBox:Hide()
+            end
+        end
+        MedaBinds.KeybindScanner:ForceRescan()
+    end
+    frame.pagedFormatDropdown = pagedFormatDropdown
+    rightY = rightY - 55
+
+    -- Custom prefix editbox (only visible when format = "custom")
+    local customPrefixLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    customPrefixLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    customPrefixLabel:SetText("Prefix:")
+    customPrefixLabel:SetTextColor(unpack(MedaUI.Theme.text))
+    customPrefixLabel:Hide()
+    frame.customPrefixLabel = customPrefixLabel
+
+    local customPrefixEditBox = MedaUI:CreateEditBox(frame, 100, 24)
+    customPrefixEditBox:SetPoint("LEFT", customPrefixLabel, "RIGHT", 10, 0)
+    customPrefixEditBox:SetText(MedaBinds.db and MedaBinds.db.options.customPagePrefix or "")
+    customPrefixEditBox.OnValueChanged = function(_, value)
+        MedaBinds.db.options.customPagePrefix = value
+        MedaBinds.KeybindScanner:ForceRescan()
+    end
+    customPrefixEditBox:Hide()
+    frame.customPrefixEditBox = customPrefixEditBox
+    rightY = rightY - 28
+
+    -- Paged keybind color picker
+    local pagedColorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    pagedColorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    pagedColorLabel:SetText("Paged Color:")
+    pagedColorLabel:SetTextColor(unpack(MedaUI.Theme.text))
+
+    local pagedColorPicker = MedaUI:CreateColorPicker(frame, 26, 26, true)
+    pagedColorPicker:SetPoint("LEFT", pagedColorLabel, "RIGHT", 10, 0)
+    pagedColorPicker.OnColorChanged = function(_, r, g, b, a)
+        MedaBinds.db.options.pagedKeybindColor = { r = r, g = g, b = b, a = a }
+        MedaBinds.OverlayManager:RefreshAllOverlays()
+    end
+    frame.pagedColorPicker = pagedColorPicker
+    rightY = rightY - 35
+
+    -- Page switch key override (for macro-based paging)
+    local pageSwitchLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    pageSwitchLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    pageSwitchLabel:SetText("Page Switch Key:")
+    pageSwitchLabel:SetTextColor(unpack(MedaUI.Theme.text))
+    rightY = rightY - 22
+
+    -- Use MedaUI's styled edit box
+    local pageSwitchEditBox = MedaUI:CreateEditBox(frame, 80, 24)
+    pageSwitchEditBox:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+
+    -- Saved feedback text
+    local savedText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    savedText:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY - 26)
+    savedText:SetText("")
+    savedText:SetTextColor(0.4, 1, 0.4, 1)
+
+    -- Track last saved value on the container to avoid duplicate saves
+    pageSwitchEditBox._lastSavedValue = nil
+    pageSwitchEditBox._pendingRescan = nil
+
+    -- Function to save the value (with dedup and debounced rescan)
+    local function SavePageSwitchKey()
+        local value = pageSwitchEditBox:GetText()
+        -- Only save if value actually changed
+        if value == pageSwitchEditBox._lastSavedValue then
+            return
+        end
+        pageSwitchEditBox._lastSavedValue = value
+        MedaBinds.db.options.pageKeybindOverride = value
+        savedText:SetText("Saved!")
+
+        -- Cancel any pending rescan
+        if pageSwitchEditBox._pendingRescan then
+            pageSwitchEditBox._pendingRescan:Cancel()
+        end
+
+        -- Debounce and use light rescan to avoid freezing
+        pageSwitchEditBox._pendingRescan = C_Timer.NewTimer(0.1, function()
+            MedaBinds.KeybindScanner:RebuildPagedKeybinds()
+            pageSwitchEditBox._pendingRescan = nil
+        end)
+
+        C_Timer.After(2, function()
+            if savedText then
+                savedText:SetText("")
+            end
+        end)
+    end
+
+    -- Save on Enter press
+    pageSwitchEditBox.OnEnterPressed = function(_, text)
+        SavePageSwitchKey()
+    end
+
+    -- Also save on focus lost by hooking the inner editBox
+    pageSwitchEditBox.editBox:HookScript("OnEditFocusLost", function()
+        SavePageSwitchKey()
+    end)
+
+    frame.pageSwitchEditBox = pageSwitchEditBox
+
+    -- Help text
+    rightY = rightY - 42
+    local helpText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    helpText:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    helpText:SetText("For macro-based paging (e.g. Q)")
+    helpText:SetTextColor(unpack(MedaUI.Theme.textDim))
 
     frame.Refresh = function()
         essentialCheck:SetChecked(MedaBinds.db.options.showOnEssential)
@@ -1139,9 +1329,34 @@ CreateOptionsTab = function(parent)
         abbreviateCheck:SetChecked(MedaBinds.db.options.abbreviateKeybinds)
         scanHiddenCheck:SetChecked(MedaBinds.db.options.scanHiddenBars)
         scanMacrosCheck:SetChecked(MedaBinds.db.options.scanMacros)
+
+        -- Paged keybind settings
+        showPagedCheck:SetChecked(MedaBinds.db.options.showPagedKeybinds)
+        pagedFormatDropdown:SetSelected(MedaBinds.db.options.pagedKeybindFormat or "auto")
+        customPrefixEditBox:SetText(MedaBinds.db.options.customPagePrefix or "")
+        -- Show/hide custom prefix based on format
+        if MedaBinds.db.options.pagedKeybindFormat == "custom" then
+            customPrefixLabel:Show()
+            customPrefixEditBox:Show()
+        else
+            customPrefixLabel:Hide()
+            customPrefixEditBox:Hide()
+        end
+        -- Paged color picker
+        local pagedColor = MedaBinds.db.options.pagedKeybindColor or { r = 0.7, g = 0.7, b = 0.9, a = 1 }
+        pagedColorPicker:SetColor(pagedColor.r, pagedColor.g, pagedColor.b, pagedColor.a or 1)
+
+        -- Page switch key override
+        if frame.pageSwitchEditBox then
+            local value = MedaBinds.db.options.pageKeybindOverride or ""
+            frame.pageSwitchEditBox:SetText(value)
+            frame.pageSwitchEditBox._lastSavedValue = value
+        end
+
         modifierDropdown:SetSelected(MedaBinds.db.options.configModifierKey)
         combatDisableCheck:SetChecked(MedaBinds.db.options.autoDisableInCombat)
         minimapCheck:SetChecked(MedaBinds.db.options.showMinimapButton)
+        -- Theme selector refreshes itself automatically
     end
 
     return frame

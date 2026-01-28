@@ -24,6 +24,11 @@ local itemToKeybind = {}     -- Maps itemID to formatted keybind
 local itemToSlot = {}        -- Maps itemID to action slot(s)
 local trinketKeybinds = {}   -- Direct trinket slot keybinds (slot 13, 14)
 
+-- Paged keybind caches
+local pageKeybinds = {}      -- Maps page number to keybind (e.g., {[2] = "Q", [3] = "SHIFT-Q"})
+local spellToPage = {}       -- Maps spellID to page number (1-6)
+local pagedSpellKeybinds = {}  -- Maps spellID to formatted paged keybind
+
 -- Cached action bar state for class-specific bars
 local cachedState = {
     page = 1,
@@ -126,6 +131,7 @@ end
 local function RebuildBindingCache()
     wipe(bindingCache)
 
+    -- Standard Blizzard binding patterns
     for _, pattern in ipairs(BINDING_PATTERNS) do
         for i = 1, NUM_ACTIONBAR_BUTTONS do
             local command = pattern .. i
@@ -136,18 +142,48 @@ local function RebuildBindingCache()
         end
     end
 
-    -- Also support Bartender4 bindings if available
-    for barNum = 1, 10 do
-        for buttonNum = 1, 12 do
-            local bindingKey = "CLICK BT4Button" .. ((barNum - 1) * 12 + buttonNum) .. ":LeftButton"
-            local key = GetBindingKey(bindingKey)
+    bindingCacheValid = true
+end
+
+-- Build page keybind cache (detects ACTIONPAGE1-6 keybinds or uses manual override)
+local function BuildPageKeybindCache()
+    wipe(pageKeybinds)
+
+    local options = MedaBinds.db and MedaBinds.db.options or {}
+    local manualOverride = options.pageKeybindOverride
+
+    -- Detect keybinds for action pages 1-6
+    for page = 1, 6 do
+        -- First check for manual override (for users with macro-based paging)
+        -- The override applies to ALL pages (single key for page switching)
+        if manualOverride and manualOverride ~= "" then
+            pageKeybinds[page] = manualOverride
+            MedaBinds:Debug("BuildPageKeybindCache: Page", page, "= (manual)", manualOverride)
+        else
+            -- Fall back to auto-detected ACTIONPAGE binding
+            local key = GetBindingKey("ACTIONPAGE" .. page)
             if key then
-                bindingCache["BT4Bar" .. barNum .. "Button" .. buttonNum] = key
+                pageKeybinds[page] = key
+                MedaBinds:Debug("BuildPageKeybindCache: Page", page, "=", key)
             end
         end
     end
+end
 
-    bindingCacheValid = true
+-- Paged keybind separator (indicates key sequence)
+local PAGED_SEPARATOR = ">"
+
+-- Format a paged keybind based on user settings
+local function FormatPagedKeybind(pageKey, slotKey, pageNum, options)
+    local format = options.pagedKeybindFormat or "auto"
+
+    if format == "custom" and options.customPagePrefix and options.customPagePrefix ~= "" then
+        return options.customPagePrefix .. FormatKeybind(slotKey)
+    elseif format == "pagenum" then
+        return "P" .. pageNum .. PAGED_SEPARATOR .. FormatKeybind(slotKey)
+    else -- "auto" or "pagekey"
+        return FormatKeybind(pageKey) .. PAGED_SEPARATOR .. FormatKeybind(slotKey)
+    end
 end
 
 -- Calculate action slot from button ID and bar type
@@ -195,7 +231,9 @@ local function BuildSlotToKeybindMap()
 
     wipe(slotToKeybind)
 
-    -- Main action bar
+    MedaBinds:Debug("BuildSlotToKeybindMap: page=", cachedState.page, "bonusOffset=", cachedState.bonusOffset)
+
+    -- Main action bar (slots 1-12, or bonus bar slots)
     for buttonID = 1, NUM_ACTIONBAR_BUTTONS do
         local slot = CalculateActionSlot(buttonID, "main")
         local key = bindingCache["ACTIONBUTTON" .. buttonID]
@@ -229,54 +267,95 @@ local function BuildSlotToKeybindMap()
 end
 
 -- Build spellID-to-slot mapping
+-- Key insight: spells can exist in MULTIPLE slots, we must prefer slots that have keybinds
+-- Now also tracks which page (1-6) each spell is on for paged keybind support
 local function BuildSpellToSlotMap()
     wipe(spellToSlot)
+    wipe(spellToPage)
 
-    -- Determine start/end slots based on bonus bar
-    local startSlot = 1
-    local endSlot = 12
+    MedaBinds:Debug("BuildSpellToSlotMap: Scanning all slots, preferring those with keybinds")
 
-    if GetBonusBarOffset and GetBonusBarOffset() > 0 then
-        local bonusOffset = GetBonusBarOffset()
-        startSlot = 72 + (bonusOffset - 1) * NUM_ACTIONBAR_BUTTONS + 1
-        endSlot = startSlot + NUM_ACTIONBAR_BUTTONS - 1
+    local currentPage = GetActionBarPage and GetActionBarPage() or 1
+
+    -- Helper to check if we should use a new slot for a spell
+    -- Priority: 1) slot with keybind, 2) current page, 3) first found
+    local function ShouldUseSlot(spellID, newSlot, newPage)
+        local existingSlot = spellToSlot[spellID]
+        if not existingSlot then
+            return true  -- No existing mapping, use this slot
+        end
+
+        local existingHasKey = slotToKeybind[existingSlot] ~= nil
+        local newHasKey = slotToKeybind[newSlot] ~= nil
+
+        -- Prefer slot with keybind
+        if newHasKey and not existingHasKey then
+            return true
+        end
+
+        -- If both have/lack keybinds equally, prefer current page
+        if newHasKey == existingHasKey then
+            local existingPage = spellToPage[spellID]
+            if newPage == currentPage and existingPage ~= currentPage then
+                return true
+            end
+        end
+
+        return false  -- Keep existing mapping
     end
 
-    -- First scan bonus/class bar slots (priority)
-    for slot = startSlot, endSlot do
-        local actionType, id, subType = GetActionInfo(slot)
-        if actionType == "spell" then
-            if not spellToSlot[id] then
-                spellToSlot[id] = slot
-            end
-        elseif actionType == "macro" then
-            -- Use GetMacroSpell for reliable macro spell detection
-            local macroSpellID = GetMacroSpell and GetMacroSpell(id)
-            if macroSpellID and not spellToSlot[macroSpellID] then
-                spellToSlot[macroSpellID] = slot
-            end
-            -- Also check subType for spell macros
-            if subType == "spell" and id and not spellToSlot[id] then
-                spellToSlot[id] = slot
+    -- First scan main bar pages 1-6 (slots 1-72) to track page info
+    for page = 1, 6 do
+        for buttonNum = 1, NUM_ACTIONBAR_BUTTONS do
+            local slot = buttonNum + ((page - 1) * NUM_ACTIONBAR_BUTTONS)
+            if HasAction(slot) then
+                local actionType, id, subType = GetActionInfo(slot)
+                if actionType == "spell" and id then
+                    if ShouldUseSlot(id, slot, page) then
+                        spellToSlot[id] = slot
+                        spellToPage[id] = page
+                    end
+                elseif actionType == "macro" and id then
+                    local macroSpellID = GetMacroSpell and GetMacroSpell(id)
+                    if macroSpellID then
+                        if ShouldUseSlot(macroSpellID, slot, page) then
+                            spellToSlot[macroSpellID] = slot
+                            spellToPage[macroSpellID] = page
+                        end
+                    end
+                    if subType == "spell" and id then
+                        if ShouldUseSlot(id, slot, page) then
+                            spellToSlot[id] = slot
+                            spellToPage[id] = page
+                        end
+                    end
+                end
             end
         end
     end
 
-    -- Then scan remaining slots (skip class bar range 73-132)
-    for slot = 25, MAX_ACTION_SLOTS do
-        if (slot <= 72 or slot > 132) and HasAction(slot) then
-            local actionType, id, subType = GetActionInfo(slot)
-            if actionType == "spell" then
-                if not spellToSlot[id] then
-                    spellToSlot[id] = slot
-                end
-            elseif actionType == "macro" then
-                local macroSpellID = GetMacroSpell and GetMacroSpell(id)
-                if macroSpellID and not spellToSlot[macroSpellID] then
-                    spellToSlot[macroSpellID] = slot
-                end
-                if subType == "spell" and id and not spellToSlot[id] then
-                    spellToSlot[id] = slot
+    -- Scan remaining slots (skip 73-132 class bar range, handled separately if needed)
+    for slot = 73, MAX_ACTION_SLOTS do
+        if slot > 132 then  -- Skip class bar range 73-132
+            if HasAction(slot) then
+                local actionType, id, subType = GetActionInfo(slot)
+                if actionType == "spell" and id then
+                    if ShouldUseSlot(id, slot, nil) then
+                        spellToSlot[id] = slot
+                        -- Don't set spellToPage for non-main-bar spells
+                    end
+                elseif actionType == "macro" and id then
+                    local macroSpellID = GetMacroSpell and GetMacroSpell(id)
+                    if macroSpellID then
+                        if ShouldUseSlot(macroSpellID, slot, nil) then
+                            spellToSlot[macroSpellID] = slot
+                        end
+                    end
+                    if subType == "spell" and id then
+                        if ShouldUseSlot(id, slot, nil) then
+                            spellToSlot[id] = slot
+                        end
+                    end
                 end
             end
         end
@@ -291,6 +370,52 @@ local function BuildSpellToKeybindMap()
         local key = slotToKeybind[slot]
         if key and key ~= "" then
             spellToKeybind[spellID] = FormatKeybind(key)
+        end
+    end
+end
+
+-- Build paged keybind map for spells on non-current pages ONLY
+-- This map only contains spells that require a page switch to access
+local function BuildPagedKeybindMap()
+    wipe(pagedSpellKeybinds)
+
+    local currentPage = GetActionBarPage and GetActionBarPage() or 1
+    local options = MedaBinds.db and MedaBinds.db.options or {}
+
+    MedaBinds:Debug("BuildPagedKeybindMap: currentPage =", currentPage, "showPagedKeybinds =", tostring(options.showPagedKeybinds))
+
+    -- Skip if paged keybinds are disabled
+    if options.showPagedKeybinds == false then
+        MedaBinds:Debug("BuildPagedKeybindMap: DISABLED - skipping")
+        return
+    end
+
+    for spellID, slot in pairs(spellToSlot) do
+        local page = spellToPage[spellID]
+
+        -- Only process spells on OTHER pages (not current page)
+        -- and only if they're in the main bar page range (1-6)
+        if page and page >= 1 and page <= 6 and page ~= currentPage then
+            -- Skip if this spell already has a direct keybind (e.g., on a multibar)
+            if spellToKeybind[spellID] then
+                MedaBinds:Debug("BuildPagedKeybindMap: Skipping", spellID, "- has direct keybind:", spellToKeybind[spellID])
+            else
+                local buttonNum = ((slot - 1) % NUM_ACTIONBAR_BUTTONS) + 1
+                local slotKey = bindingCache["ACTIONBUTTON" .. buttonNum]
+                local pageKey = pageKeybinds[page]
+
+                MedaBinds:Debug("BuildPagedKeybindMap: Checking spellID", spellID, "slot", slot, "page", page, "buttonNum", buttonNum, "slotKey", slotKey or "nil", "pageKey", pageKey or "nil")
+
+                if slotKey and pageKey then
+                    local formatted = FormatPagedKeybind(pageKey, slotKey, page, options)
+                    pagedSpellKeybinds[spellID] = formatted
+                    MedaBinds:Debug("BuildPagedKeybindMap: Created", spellID, "->", formatted)
+                elseif not slotKey then
+                    MedaBinds:Debug("BuildPagedKeybindMap: No slotKey for ACTIONBUTTON" .. buttonNum)
+                elseif not pageKey then
+                    MedaBinds:Debug("BuildPagedKeybindMap: No pageKey for page", page)
+                end
+            end
         end
     end
 end
@@ -379,6 +504,16 @@ local function BuildTrinketKeybinds()
     end
 end
 
+-- Light rescan - only rebuild paged keybind data (for settings changes)
+function KeybindScanner:RebuildPagedKeybinds()
+    BuildPageKeybindCache()
+    BuildPagedKeybindMap()
+    -- Notify overlay manager to refresh
+    if MedaBinds.OverlayManager then
+        MedaBinds.OverlayManager:RefreshAllOverlays()
+    end
+end
+
 -- Full rescan of all keybinds
 function KeybindScanner:FullScan()
     MedaBinds:Debug("KeybindScanner: Starting full scan")
@@ -390,10 +525,12 @@ function KeybindScanner:FullScan()
 
     -- Rebuild caches
     RebuildBindingCache()
+    BuildPageKeybindCache()      -- Detect page switch keybinds (ACTIONPAGE1-6)
     UpdateCachedState()
     BuildSlotToKeybindMap()
-    BuildSpellToSlotMap()
+    BuildSpellToSlotMap()        -- Now scans all pages and tracks spellToPage
     BuildSpellToKeybindMap()
+    BuildPagedKeybindMap()       -- Create paged keybind strings
 
     -- Build item keybind caches
     BuildItemToSlotMap()
@@ -402,6 +539,157 @@ function KeybindScanner:FullScan()
 
     MedaBinds:Debug("KeybindScanner: Scan complete. Found", self:GetCacheCount(), "spell keybinds,", self:GetItemCacheCount(), "item keybinds")
 
+    -- Always output detailed debug when debug mode is on
+    if MedaBinds.debug then
+        MedaBinds:Debug("========================================")
+        MedaBinds:Debug("KEYBIND SCANNER DEBUG REPORT")
+        MedaBinds:Debug("========================================")
+
+        -- Show page keybinds (ACTIONPAGE1-6 or manual override)
+        MedaBinds:Debug("")
+        MedaBinds:Debug("=== PAGE KEYBINDS ===")
+        local manualOverride = MedaBinds.db and MedaBinds.db.options and MedaBinds.db.options.pageKeybindOverride or ""
+        if manualOverride ~= "" then
+            MedaBinds:Debug("Manual override:", manualOverride, "(applies to all pages)")
+        end
+        for page = 1, 6 do
+            local key = pageKeybinds[page]
+            if key then
+                local source = (manualOverride ~= "") and "(manual)" or "(auto)"
+                MedaBinds:Debug("Page", page, "=", key, source)
+            else
+                MedaBinds:Debug("Page", page, "= (not bound)")
+            end
+        end
+
+        -- Show binding commands that have keys assigned
+        MedaBinds:Debug("")
+        MedaBinds:Debug("=== BINDING COMMANDS WITH KEYS ===")
+        for _, pattern in ipairs(BINDING_PATTERNS) do
+            for i = 1, NUM_ACTIONBAR_BUTTONS do
+                local cmd = pattern .. i
+                local key = bindingCache[cmd]
+                if key then
+                    MedaBinds:Debug(cmd, "=", key)
+                end
+            end
+        end
+
+        -- Show slot -> keybind map with contents
+        MedaBinds:Debug("")
+        MedaBinds:Debug("=== SLOTS WITH KEYBINDS (", self:CountSlotKeybinds(), " total) ===")
+        local sortedSlots = {}
+        for slot, key in pairs(slotToKeybind) do
+            table.insert(sortedSlots, { slot = slot, key = key })
+        end
+        table.sort(sortedSlots, function(a, b) return a.slot < b.slot end)
+        for _, info in ipairs(sortedSlots) do
+            local actionType, id = GetActionInfo(info.slot)
+            local content = "(empty)"
+            if actionType == "spell" and id then
+                local spellInfo = C_Spell.GetSpellInfo(id)
+                content = "spell: " .. (spellInfo and spellInfo.name or "?") .. " (" .. id .. ")"
+            elseif actionType == "macro" and id then
+                local macroName = GetMacroInfo(id)
+                local macroSpell = GetMacroSpell and GetMacroSpell(id)
+                content = "macro: " .. (macroName or "?")
+                if macroSpell then
+                    local spellInfo = C_Spell.GetSpellInfo(macroSpell)
+                    content = content .. " -> " .. (spellInfo and spellInfo.name or "?") .. " (" .. macroSpell .. ")"
+                end
+            elseif actionType then
+                content = actionType .. ": " .. tostring(id)
+            end
+            MedaBinds:Debug("Slot", info.slot, "| Key:", info.key, "|", content)
+        end
+
+        -- Show spells that HAVE keybinds
+        MedaBinds:Debug("")
+        MedaBinds:Debug("=== SPELLS WITH KEYBINDS (", self:GetCacheCount(), " total) ===")
+        local sortedSpells = {}
+        for spellID, keybind in pairs(spellToKeybind) do
+            local spellInfo = C_Spell.GetSpellInfo(spellID)
+            local name = spellInfo and spellInfo.name or "Unknown"
+            local slot = spellToSlot[spellID] or "?"
+            table.insert(sortedSpells, { name = name, spellID = spellID, slot = slot, keybind = keybind })
+        end
+        table.sort(sortedSpells, function(a, b) return a.name < b.name end)
+        for _, info in ipairs(sortedSpells) do
+            MedaBinds:Debug(info.name, "| Slot:", info.slot, "| Key:", info.keybind)
+        end
+
+        -- Show paged keybinds (spells on non-current pages)
+        MedaBinds:Debug("")
+        MedaBinds:Debug("=== PAGED KEYBINDS ===")
+        local currentPage = GetActionBarPage and GetActionBarPage() or 1
+        MedaBinds:Debug("Current page:", currentPage)
+        local pagedCount = 0
+        local sortedPaged = {}
+        for spellID, keybind in pairs(pagedSpellKeybinds) do
+            local page = spellToPage[spellID]
+            if page and page ~= currentPage then
+                pagedCount = pagedCount + 1
+                local spellInfo = C_Spell.GetSpellInfo(spellID)
+                local name = spellInfo and spellInfo.name or "Unknown"
+                table.insert(sortedPaged, { name = name, spellID = spellID, page = page, keybind = keybind })
+            end
+        end
+        table.sort(sortedPaged, function(a, b) return a.name < b.name end)
+        for _, info in ipairs(sortedPaged) do
+            MedaBinds:Debug(info.name, "| Page:", info.page, "| Key:", info.keybind)
+        end
+        if pagedCount == 0 then
+            MedaBinds:Debug("(none - no spells on other pages with keybinds)")
+        end
+
+        -- Show spells WITHOUT keybinds - THIS IS KEY FOR DEBUGGING
+        MedaBinds:Debug("")
+        MedaBinds:Debug("=== SPELLS WITHOUT KEYBINDS (PROBLEMS) ===")
+        local problemCount = 0
+        for spellID, slot in pairs(spellToSlot) do
+            if not spellToKeybind[spellID] then
+                problemCount = problemCount + 1
+                local spellInfo = C_Spell.GetSpellInfo(spellID)
+                local name = spellInfo and spellInfo.name or "Unknown"
+                local slotKey = slotToKeybind[slot]
+                if slotKey then
+                    MedaBinds:Debug(name, "| Slot:", slot, "| Slot has key:", slotKey, "but spell not mapped!")
+                else
+                    MedaBinds:Debug(name, "| Slot:", slot, "| NO KEYBIND FOR THIS SLOT")
+                end
+            end
+        end
+        if problemCount == 0 then
+            MedaBinds:Debug("(none - all spells have keybinds)")
+        end
+
+        -- Show all action slots with content (to see what's on bars)
+        MedaBinds:Debug("")
+        MedaBinds:Debug("=== ALL OCCUPIED ACTION SLOTS ===")
+        for slot = 1, MAX_ACTION_SLOTS do
+            if HasAction(slot) then
+                local actionType, id, subType = GetActionInfo(slot)
+                local key = slotToKeybind[slot] or "NO KEY"
+                local content = ""
+                if actionType == "spell" and id then
+                    local spellInfo = C_Spell.GetSpellInfo(id)
+                    content = (spellInfo and spellInfo.name or "?") .. " (" .. id .. ")"
+                elseif actionType == "macro" and id then
+                    local macroName = GetMacroInfo(id)
+                    content = "macro:" .. (macroName or id)
+                else
+                    content = (actionType or "?") .. ":" .. tostring(id)
+                end
+                MedaBinds:Debug("Slot", slot, "| Key:", key, "|", actionType, "|", content)
+            end
+        end
+
+        MedaBinds:Debug("")
+        MedaBinds:Debug("========================================")
+        MedaBinds:Debug("END DEBUG REPORT")
+        MedaBinds:Debug("========================================")
+    end
+
     -- Notify overlay manager to refresh
     if MedaBinds.OverlayManager then
         MedaBinds.OverlayManager:RefreshAllOverlays()
@@ -409,32 +697,68 @@ function KeybindScanner:FullScan()
 end
 
 -- Get keybind for a specific spellID (handles override/base spell lookups)
+-- Now checks paged keybinds first (includes current page direct keybinds)
 function KeybindScanner:GetKeybindForSpell(spellID)
     if not spellID or spellID == 0 then
         return nil
     end
 
-    -- Direct lookup
+    local spellInfo = C_Spell.GetSpellInfo(spellID)
+    local spellName = spellInfo and spellInfo.name or "Unknown"
+
+    -- First check direct keybinds (from visible action bars)
     if spellToKeybind[spellID] then
+        MedaBinds:Debug("GetKeybindForSpell:", spellName, "(", spellID, ") -> direct:", spellToKeybind[spellID])
         return spellToKeybind[spellID]
+    end
+
+    -- Then check paged keybinds (spells on other pages that require page switch)
+    if pagedSpellKeybinds[spellID] then
+        MedaBinds:Debug("GetKeybindForSpell:", spellName, "(", spellID, ") -> paged:", pagedSpellKeybinds[spellID])
+        return pagedSpellKeybinds[spellID]
     end
 
     -- Try override spell (e.g., talent-modified abilities)
     if C_Spell.GetOverrideSpell then
         local overrideSpellID = C_Spell.GetOverrideSpell(spellID)
-        if overrideSpellID and spellToKeybind[overrideSpellID] then
-            return spellToKeybind[overrideSpellID]
+        if overrideSpellID and overrideSpellID ~= spellID then
+            local overrideInfo = C_Spell.GetSpellInfo(overrideSpellID)
+            local overrideName = overrideInfo and overrideInfo.name or "Unknown"
+            MedaBinds:Debug("GetKeybindForSpell:", spellName, "-> checking override:", overrideName, "(", overrideSpellID, ")")
+            -- Check direct keybinds for override first
+            if spellToKeybind[overrideSpellID] then
+                MedaBinds:Debug("GetKeybindForSpell:", spellName, "-> via override:", spellToKeybind[overrideSpellID])
+                return spellToKeybind[overrideSpellID]
+            end
+            -- Then paged keybinds for override
+            if pagedSpellKeybinds[overrideSpellID] then
+                MedaBinds:Debug("GetKeybindForSpell:", spellName, "-> via override paged:", pagedSpellKeybinds[overrideSpellID])
+                return pagedSpellKeybinds[overrideSpellID]
+            end
         end
     end
 
     -- Try base spell
     if C_Spell.GetBaseSpell then
         local baseSpellID = C_Spell.GetBaseSpell(spellID)
-        if baseSpellID and spellToKeybind[baseSpellID] then
-            return spellToKeybind[baseSpellID]
+        if baseSpellID and baseSpellID ~= spellID then
+            local baseInfo = C_Spell.GetSpellInfo(baseSpellID)
+            local baseName = baseInfo and baseInfo.name or "Unknown"
+            MedaBinds:Debug("GetKeybindForSpell:", spellName, "-> checking base:", baseName, "(", baseSpellID, ")")
+            -- Check direct keybinds for base first
+            if spellToKeybind[baseSpellID] then
+                MedaBinds:Debug("GetKeybindForSpell:", spellName, "-> via base:", spellToKeybind[baseSpellID])
+                return spellToKeybind[baseSpellID]
+            end
+            -- Then paged keybinds for base
+            if pagedSpellKeybinds[baseSpellID] then
+                MedaBinds:Debug("GetKeybindForSpell:", spellName, "-> via base paged:", pagedSpellKeybinds[baseSpellID])
+                return pagedSpellKeybinds[baseSpellID]
+            end
         end
     end
 
+    MedaBinds:Debug("GetKeybindForSpell:", spellName, "(", spellID, ") -> NOT FOUND")
     return nil
 end
 
@@ -528,6 +852,65 @@ function KeybindScanner:GetCacheCount()
         count = count + 1
     end
     return count
+end
+
+-- Get count of slot keybinds
+function KeybindScanner:CountSlotKeybinds()
+    local count = 0
+    for _ in pairs(slotToKeybind) do
+        count = count + 1
+    end
+    return count
+end
+
+-- Get bar name and button number from a slot
+function KeybindScanner:GetBarInfoForSlot(slot)
+    if not slot or slot <= 0 then return nil, nil end
+
+    local page = math.ceil(slot / NUM_ACTIONBAR_BUTTONS)
+    local buttonNum = ((slot - 1) % NUM_ACTIONBAR_BUTTONS) + 1
+
+    local barName = "Unknown"
+
+    -- For main bar pages 1-6, show current vs other page info
+    if page >= 1 and page <= 6 then
+        local currentPage = GetActionBarPage and GetActionBarPage() or 1
+        if page == currentPage then
+            barName = "Main Bar"
+        else
+            barName = "Main Bar (Page " .. page .. ")"
+        end
+    elseif page >= 7 and page <= 11 then
+        -- Class/bonus bar pages (73-132)
+        barName = "Class Bar " .. (page - 6)
+    elseif page == 12 then
+        barName = "Bar 5"
+    elseif page == 13 then
+        barName = "Bar 6"
+    elseif page == 14 then
+        barName = "Bar 7"
+    elseif page == 15 then
+        barName = "Bar 8"
+    end
+
+    return barName, buttonNum
+end
+
+-- Get slot for a spell (exposed for external use)
+function KeybindScanner:GetSlotForSpell(spellID)
+    return spellToSlot[spellID]
+end
+
+-- Get page for a spell (1-6 for main bar, nil for other bars)
+function KeybindScanner:GetPageForSpell(spellID)
+    return spellToPage[spellID]
+end
+
+-- Check if a spell's keybind is a paged keybind (requires page switch)
+-- Returns true only if the spell is in the pagedSpellKeybinds map
+-- (meaning it's on another page AND doesn't have a direct keybind)
+function KeybindScanner:IsPagedKeybind(spellID)
+    return pagedSpellKeybinds[spellID] ~= nil
 end
 
 -- Get all cached keybinds (for debugging)
@@ -631,11 +1014,8 @@ end
 function KeybindScanner:Initialize()
     MedaBinds:Debug("KeybindScanner: Initializing")
 
-    -- Initial scan
-    self:FullScan()
-    lastScanTime = GetTime()
-
     -- Register for keybind-related events (minimal set)
+    -- Note: Initial scan happens via PLAYER_ENTERING_WORLD event
     eventFrame:SetScript("OnEvent", OnEvent)
 
     -- Essential events
