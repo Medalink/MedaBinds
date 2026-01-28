@@ -5,6 +5,7 @@
 ## Version: 1.0.0
 ## SavedVariables: MedaBindsDB
 ## IconTexture: Interface\AddOns\MedaBinds\Media\binding-chain
+## X-Wago-ID: bGoy5Y60
 
 # Embedded Libraries
 Libs\MedaUI\MedaUI.xml
