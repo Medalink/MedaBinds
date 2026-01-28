@@ -1203,14 +1203,16 @@ CreateOptionsTab = function(parent)
     pagedFormatDropdown:SetPoint("TOPLEFT", pagedFormatLabel, "BOTTOMLEFT", 0, -4)
     pagedFormatDropdown.OnValueChanged = function(_, value)
         MedaBinds.db.options.pagedKeybindFormat = value
-        -- Show/hide custom prefix editbox
+        -- Show/hide custom prefix editbox and saved text
         if frame.customPrefixLabel and frame.customPrefixEditBox then
             if value == "custom" then
                 frame.customPrefixLabel:Show()
                 frame.customPrefixEditBox:Show()
+                if frame.customPrefixSavedText then frame.customPrefixSavedText:Show() end
             else
                 frame.customPrefixLabel:Hide()
                 frame.customPrefixEditBox:Hide()
+                if frame.customPrefixSavedText then frame.customPrefixSavedText:Hide() end
             end
         end
         MedaBinds.KeybindScanner:ForceRescan()
@@ -1229,12 +1231,60 @@ CreateOptionsTab = function(parent)
     local customPrefixEditBox = MedaUI:CreateEditBox(frame, 100, 24)
     customPrefixEditBox:SetPoint("LEFT", customPrefixLabel, "RIGHT", 10, 0)
     customPrefixEditBox:SetText(MedaBinds.db and MedaBinds.db.options.customPagePrefix or "")
-    customPrefixEditBox.OnValueChanged = function(_, value)
-        MedaBinds.db.options.customPagePrefix = value
-        MedaBinds.KeybindScanner:ForceRescan()
-    end
     customPrefixEditBox:Hide()
     frame.customPrefixEditBox = customPrefixEditBox
+
+    -- Saved feedback text for custom prefix
+    local customPrefixSavedText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    customPrefixSavedText:SetPoint("LEFT", customPrefixEditBox, "RIGHT", 8, 0)
+    customPrefixSavedText:SetText("")
+    customPrefixSavedText:SetTextColor(0.4, 1, 0.4, 1)
+    customPrefixSavedText:Hide()
+    frame.customPrefixSavedText = customPrefixSavedText
+
+    -- Track last saved value to avoid duplicate saves
+    customPrefixEditBox._lastSavedValue = nil
+    customPrefixEditBox._pendingRescan = nil
+
+    -- Function to save the custom prefix (with dedup and debounced rescan)
+    local function SaveCustomPrefix()
+        local value = customPrefixEditBox:GetText()
+        -- Only save if value actually changed
+        if value == customPrefixEditBox._lastSavedValue then
+            return
+        end
+        customPrefixEditBox._lastSavedValue = value
+        MedaBinds.db.options.customPagePrefix = value
+        customPrefixSavedText:SetText("Saved!")
+
+        -- Cancel any pending rescan
+        if customPrefixEditBox._pendingRescan then
+            customPrefixEditBox._pendingRescan:Cancel()
+        end
+
+        -- Debounce and use light rescan to avoid freezing
+        customPrefixEditBox._pendingRescan = C_Timer.NewTimer(0.1, function()
+            MedaBinds.KeybindScanner:RebuildPagedKeybinds()
+            customPrefixEditBox._pendingRescan = nil
+        end)
+
+        C_Timer.After(2, function()
+            if customPrefixSavedText then
+                customPrefixSavedText:SetText("")
+            end
+        end)
+    end
+
+    -- Save on Enter press
+    customPrefixEditBox.OnEnterPressed = function(_, text)
+        SaveCustomPrefix()
+    end
+
+    -- Also save on focus lost by hooking the inner editBox
+    customPrefixEditBox.editBox:HookScript("OnEditFocusLost", function()
+        SaveCustomPrefix()
+    end)
+
     rightY = rightY - 28
 
     -- Paged keybind color picker
@@ -1333,14 +1383,18 @@ CreateOptionsTab = function(parent)
         -- Paged keybind settings
         showPagedCheck:SetChecked(MedaBinds.db.options.showPagedKeybinds)
         pagedFormatDropdown:SetSelected(MedaBinds.db.options.pagedKeybindFormat or "auto")
-        customPrefixEditBox:SetText(MedaBinds.db.options.customPagePrefix or "")
+        local customPrefixValue = MedaBinds.db.options.customPagePrefix or ""
+        customPrefixEditBox:SetText(customPrefixValue)
+        customPrefixEditBox._lastSavedValue = customPrefixValue
         -- Show/hide custom prefix based on format
         if MedaBinds.db.options.pagedKeybindFormat == "custom" then
             customPrefixLabel:Show()
             customPrefixEditBox:Show()
+            customPrefixSavedText:Show()
         else
             customPrefixLabel:Hide()
             customPrefixEditBox:Hide()
+            customPrefixSavedText:Hide()
         end
         -- Paged color picker
         local pagedColor = MedaBinds.db.options.pagedKeybindColor or { r = 0.7, g = 0.7, b = 0.9, a = 1 }
