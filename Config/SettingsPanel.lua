@@ -1351,7 +1351,7 @@ CreateOptionsTab = function(parent)
 
     local pagedPreviewBg = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     pagedPreviewBg:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
-    pagedPreviewBg:SetSize(160, 60)
+    pagedPreviewBg:SetSize(200, 80)
     pagedPreviewBg:SetBackdrop({
         bgFile = "Interface\\Buttons\\WHITE8x8",
         edgeFile = "Interface\\Buttons\\WHITE8x8",
@@ -1360,9 +1360,9 @@ CreateOptionsTab = function(parent)
     pagedPreviewBg:SetBackdropColor(0.05, 0.05, 0.05, 1)
     pagedPreviewBg:SetBackdropBorderColor(unpack(MedaUI.Theme.border))
 
-    -- Sample icon background
+    -- Sample icon background (same size as global styles preview)
     local pagedIconBg = pagedPreviewBg:CreateTexture(nil, "ARTWORK")
-    pagedIconBg:SetSize(36, 36)
+    pagedIconBg:SetSize(40, 40)
     pagedIconBg:SetPoint("CENTER", pagedPreviewBg, "CENTER", 0, 0)
     pagedIconBg:SetTexture("Interface\\AddOns\\MedaBinds\\Media\\binding-chain")
 
