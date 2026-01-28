@@ -145,20 +145,20 @@ local function RebuildBindingCache()
     bindingCacheValid = true
 end
 
--- Build page keybind cache (detects ACTIONPAGE1-6 keybinds or uses manual override)
+-- Build page keybind cache (detects ACTIONPAGE1-6 keybinds or uses custom override)
 local function BuildPageKeybindCache()
     wipe(pageKeybinds)
 
     local options = MedaBinds.db and MedaBinds.db.options or {}
-    local manualOverride = options.pageKeybindOverride
+    local customKey = options.customPagedKeybind
 
     -- Detect keybinds for action pages 1-6
     for page = 1, 6 do
-        -- First check for manual override (for users with macro-based paging)
-        -- The override applies to ALL pages (single key for page switching)
-        if manualOverride and manualOverride ~= "" then
-            pageKeybinds[page] = manualOverride
-            MedaBinds:Debug("BuildPageKeybindCache: Page", page, "= (manual)", manualOverride)
+        -- First check for custom paged keybind (for users with macro-based paging)
+        -- The custom key applies to ALL pages (single key for page switching)
+        if customKey and customKey ~= "" then
+            pageKeybinds[page] = customKey
+            MedaBinds:Debug("BuildPageKeybindCache: Page", page, "= (custom)", customKey)
         else
             -- Fall back to auto-detected ACTIONPAGE binding
             local key = GetBindingKey("ACTIONPAGE" .. page)
@@ -170,19 +170,19 @@ local function BuildPageKeybindCache()
     end
 end
 
--- Paged keybind separator (indicates key sequence)
-local PAGED_SEPARATOR = ">"
-
 -- Format a paged keybind based on user settings
+-- If customPagedKeybind is set: "Q>E" (custom key + separator + slot key)
+-- Otherwise: ">E" (just separator + slot key)
 local function FormatPagedKeybind(pageKey, slotKey, pageNum, options)
-    local format = options.pagedKeybindFormat or "auto"
+    local separator = options.pagedKeybindSeparator or ">"
+    local customKey = options.customPagedKeybind
 
-    if format == "custom" and options.customPagePrefix and options.customPagePrefix ~= "" then
-        return options.customPagePrefix .. FormatKeybind(slotKey)
-    elseif format == "pagenum" then
-        return "P" .. pageNum .. PAGED_SEPARATOR .. FormatKeybind(slotKey)
-    else -- "auto" or "pagekey"
-        return FormatKeybind(pageKey) .. PAGED_SEPARATOR .. FormatKeybind(slotKey)
+    if customKey and customKey ~= "" then
+        -- User has a custom page switch key: show "Q>E"
+        return customKey .. separator .. FormatKeybind(slotKey)
+    else
+        -- No custom key: just show ">E"
+        return separator .. FormatKeybind(slotKey)
     end
 end
 
@@ -545,17 +545,19 @@ function KeybindScanner:FullScan()
         MedaBinds:Debug("KEYBIND SCANNER DEBUG REPORT")
         MedaBinds:Debug("========================================")
 
-        -- Show page keybinds (ACTIONPAGE1-6 or manual override)
+        -- Show page keybinds (ACTIONPAGE1-6 or custom override)
         MedaBinds:Debug("")
         MedaBinds:Debug("=== PAGE KEYBINDS ===")
-        local manualOverride = MedaBinds.db and MedaBinds.db.options and MedaBinds.db.options.pageKeybindOverride or ""
-        if manualOverride ~= "" then
-            MedaBinds:Debug("Manual override:", manualOverride, "(applies to all pages)")
+        local customKey = MedaBinds.db and MedaBinds.db.options and MedaBinds.db.options.customPagedKeybind or ""
+        local separator = MedaBinds.db and MedaBinds.db.options and MedaBinds.db.options.pagedKeybindSeparator or ">"
+        MedaBinds:Debug("Separator:", separator)
+        if customKey ~= "" then
+            MedaBinds:Debug("Custom paged keybind:", customKey, "(applies to all pages)")
         end
         for page = 1, 6 do
             local key = pageKeybinds[page]
             if key then
-                local source = (manualOverride ~= "") and "(manual)" or "(auto)"
+                local source = (customKey ~= "") and "(custom)" or "(auto)"
                 MedaBinds:Debug("Page", page, "=", key, source)
             else
                 MedaBinds:Debug("Page", page, "= (not bound)")

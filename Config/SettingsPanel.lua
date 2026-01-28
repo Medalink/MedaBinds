@@ -1178,116 +1178,18 @@ CreateOptionsTab = function(parent)
     pagedTitle:SetTextColor(unpack(MedaUI.Theme.gold))
     rightY = rightY - 25
 
-    local showPagedCheck = MedaUI:CreateCheckbox(frame, "Show keybinds on other pages")
+    -- Enable checkbox (renamed and off by default)
+    local showPagedCheck = MedaUI:CreateCheckbox(frame, "Enable Paged Keybinds Support")
     showPagedCheck:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
     showPagedCheck.OnValueChanged = function(_, checked)
         MedaBinds.db.options.showPagedKeybinds = checked
         MedaBinds.KeybindScanner:ForceRescan()
+        if frame.UpdatePagedPreview then frame.UpdatePagedPreview() end
     end
     frame.showPagedCheck = showPagedCheck
-    rightY = rightY - 25
+    rightY = rightY - 30
 
-    -- Paged keybind format dropdown
-    local pagedFormatLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pagedFormatLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
-    pagedFormatLabel:SetText("Format:")
-    pagedFormatLabel:SetTextColor(unpack(MedaUI.Theme.text))
-
-    local pagedFormatOptions = {
-        { label = "Auto-detect (Q>E)", value = "auto" },
-        { label = "Page number (P2>E)", value = "pagenum" },
-        { label = "Custom prefix", value = "custom" },
-    }
-
-    local pagedFormatDropdown = MedaUI:CreateDropdown(frame, 180, pagedFormatOptions)
-    pagedFormatDropdown:SetPoint("TOPLEFT", pagedFormatLabel, "BOTTOMLEFT", 0, -4)
-    pagedFormatDropdown.OnValueChanged = function(_, value)
-        MedaBinds.db.options.pagedKeybindFormat = value
-        -- Show/hide custom prefix editbox and saved text
-        if frame.customPrefixLabel and frame.customPrefixEditBox then
-            if value == "custom" then
-                frame.customPrefixLabel:Show()
-                frame.customPrefixEditBox:Show()
-                if frame.customPrefixSavedText then frame.customPrefixSavedText:Show() end
-            else
-                frame.customPrefixLabel:Hide()
-                frame.customPrefixEditBox:Hide()
-                if frame.customPrefixSavedText then frame.customPrefixSavedText:Hide() end
-            end
-        end
-        MedaBinds.KeybindScanner:ForceRescan()
-    end
-    frame.pagedFormatDropdown = pagedFormatDropdown
-    rightY = rightY - 55
-
-    -- Custom prefix editbox (only visible when format = "custom")
-    local customPrefixLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    customPrefixLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
-    customPrefixLabel:SetText("Prefix:")
-    customPrefixLabel:SetTextColor(unpack(MedaUI.Theme.text))
-    customPrefixLabel:Hide()
-    frame.customPrefixLabel = customPrefixLabel
-
-    local customPrefixEditBox = MedaUI:CreateEditBox(frame, 100, 24)
-    customPrefixEditBox:SetPoint("LEFT", customPrefixLabel, "RIGHT", 10, 0)
-    customPrefixEditBox:SetText(MedaBinds.db and MedaBinds.db.options.customPagePrefix or "")
-    customPrefixEditBox:Hide()
-    frame.customPrefixEditBox = customPrefixEditBox
-
-    -- Saved feedback text for custom prefix
-    local customPrefixSavedText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    customPrefixSavedText:SetPoint("LEFT", customPrefixEditBox, "RIGHT", 8, 0)
-    customPrefixSavedText:SetText("")
-    customPrefixSavedText:SetTextColor(0.4, 1, 0.4, 1)
-    customPrefixSavedText:Hide()
-    frame.customPrefixSavedText = customPrefixSavedText
-
-    -- Track last saved value to avoid duplicate saves
-    customPrefixEditBox._lastSavedValue = nil
-    customPrefixEditBox._pendingRescan = nil
-
-    -- Function to save the custom prefix (with dedup and debounced rescan)
-    local function SaveCustomPrefix()
-        local value = customPrefixEditBox:GetText()
-        -- Only save if value actually changed
-        if value == customPrefixEditBox._lastSavedValue then
-            return
-        end
-        customPrefixEditBox._lastSavedValue = value
-        MedaBinds.db.options.customPagePrefix = value
-        customPrefixSavedText:SetText("Saved!")
-
-        -- Cancel any pending rescan
-        if customPrefixEditBox._pendingRescan then
-            customPrefixEditBox._pendingRescan:Cancel()
-        end
-
-        -- Debounce and use light rescan to avoid freezing
-        customPrefixEditBox._pendingRescan = C_Timer.NewTimer(0.1, function()
-            MedaBinds.KeybindScanner:RebuildPagedKeybinds()
-            customPrefixEditBox._pendingRescan = nil
-        end)
-
-        C_Timer.After(2, function()
-            if customPrefixSavedText then
-                customPrefixSavedText:SetText("")
-            end
-        end)
-    end
-
-    -- Save on Enter press
-    customPrefixEditBox.OnEnterPressed = function(_, text)
-        SaveCustomPrefix()
-    end
-
-    -- Also save on focus lost by hooking the inner editBox
-    customPrefixEditBox.editBox:HookScript("OnEditFocusLost", function()
-        SaveCustomPrefix()
-    end)
-
-    rightY = rightY - 28
-
-    -- Paged keybind color picker
+    -- Paged keybind color picker (moved up)
     local pagedColorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     pagedColorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
     pagedColorLabel:SetText("Paged Color:")
@@ -1298,78 +1200,198 @@ CreateOptionsTab = function(parent)
     pagedColorPicker.OnColorChanged = function(_, r, g, b, a)
         MedaBinds.db.options.pagedKeybindColor = { r = r, g = g, b = b, a = a }
         MedaBinds.OverlayManager:RefreshAllOverlays()
+        if frame.UpdatePagedPreview then frame.UpdatePagedPreview() end
     end
     frame.pagedColorPicker = pagedColorPicker
     rightY = rightY - 35
 
-    -- Page switch key override (for macro-based paging)
-    local pageSwitchLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    pageSwitchLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
-    pageSwitchLabel:SetText("Page Switch Key:")
-    pageSwitchLabel:SetTextColor(unpack(MedaUI.Theme.text))
-    rightY = rightY - 22
+    -- Separator input
+    local separatorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    separatorLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    separatorLabel:SetText("Separator:")
+    separatorLabel:SetTextColor(unpack(MedaUI.Theme.text))
 
-    -- Use MedaUI's styled edit box
-    local pageSwitchEditBox = MedaUI:CreateEditBox(frame, 80, 24)
-    pageSwitchEditBox:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    local separatorEditBox = MedaUI:CreateEditBox(frame, 50, 24)
+    separatorEditBox:SetPoint("LEFT", separatorLabel, "RIGHT", 10, 0)
+    separatorEditBox:SetText(MedaBinds.db and MedaBinds.db.options.pagedKeybindSeparator or ">")
+    frame.separatorEditBox = separatorEditBox
 
-    -- Saved feedback text
-    local savedText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    savedText:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY - 26)
-    savedText:SetText("")
-    savedText:SetTextColor(0.4, 1, 0.4, 1)
+    -- Saved feedback text for separator
+    local separatorSavedText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    separatorSavedText:SetPoint("LEFT", separatorEditBox, "RIGHT", 8, 0)
+    separatorSavedText:SetText("")
+    separatorSavedText:SetTextColor(0.4, 1, 0.4, 1)
 
-    -- Track last saved value on the container to avoid duplicate saves
-    pageSwitchEditBox._lastSavedValue = nil
-    pageSwitchEditBox._pendingRescan = nil
+    -- Track last saved value to avoid duplicate saves
+    separatorEditBox._lastSavedValue = nil
+    separatorEditBox._pendingRescan = nil
 
-    -- Function to save the value (with dedup and debounced rescan)
-    local function SavePageSwitchKey()
-        local value = pageSwitchEditBox:GetText()
+    -- Function to save the separator (with dedup and debounced rescan)
+    local function SaveSeparator()
+        local value = separatorEditBox:GetText()
         -- Only save if value actually changed
-        if value == pageSwitchEditBox._lastSavedValue then
+        if value == separatorEditBox._lastSavedValue then
             return
         end
-        pageSwitchEditBox._lastSavedValue = value
-        MedaBinds.db.options.pageKeybindOverride = value
-        savedText:SetText("Saved!")
+        separatorEditBox._lastSavedValue = value
+        MedaBinds.db.options.pagedKeybindSeparator = value
+        separatorSavedText:SetText("Saved!")
 
         -- Cancel any pending rescan
-        if pageSwitchEditBox._pendingRescan then
-            pageSwitchEditBox._pendingRescan:Cancel()
+        if separatorEditBox._pendingRescan then
+            separatorEditBox._pendingRescan:Cancel()
         end
 
         -- Debounce and use light rescan to avoid freezing
-        pageSwitchEditBox._pendingRescan = C_Timer.NewTimer(0.1, function()
+        separatorEditBox._pendingRescan = C_Timer.NewTimer(0.1, function()
             MedaBinds.KeybindScanner:RebuildPagedKeybinds()
-            pageSwitchEditBox._pendingRescan = nil
+            separatorEditBox._pendingRescan = nil
         end)
 
+        -- Update preview
+        if frame.UpdatePagedPreview then frame.UpdatePagedPreview() end
+
         C_Timer.After(2, function()
-            if savedText then
-                savedText:SetText("")
+            if separatorSavedText then
+                separatorSavedText:SetText("")
             end
         end)
     end
 
     -- Save on Enter press
-    pageSwitchEditBox.OnEnterPressed = function(_, text)
-        SavePageSwitchKey()
+    separatorEditBox.OnEnterPressed = function(_, text)
+        SaveSeparator()
     end
 
     -- Also save on focus lost by hooking the inner editBox
-    pageSwitchEditBox.editBox:HookScript("OnEditFocusLost", function()
-        SavePageSwitchKey()
+    separatorEditBox.editBox:HookScript("OnEditFocusLost", function()
+        SaveSeparator()
     end)
 
-    frame.pageSwitchEditBox = pageSwitchEditBox
+    rightY = rightY - 32
+
+    -- Custom Paged Keybind input (renamed from Page Switch Key)
+    local customPagedLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    customPagedLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    customPagedLabel:SetText("Custom Paged Keybind:")
+    customPagedLabel:SetTextColor(unpack(MedaUI.Theme.text))
+    rightY = rightY - 22
+
+    local customPagedEditBox = MedaUI:CreateEditBox(frame, 80, 24)
+    customPagedEditBox:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    customPagedEditBox:SetText(MedaBinds.db and MedaBinds.db.options.customPagedKeybind or "")
+    frame.customPagedEditBox = customPagedEditBox
+
+    -- Saved feedback text for custom paged keybind
+    local customPagedSavedText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    customPagedSavedText:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY - 26)
+    customPagedSavedText:SetText("")
+    customPagedSavedText:SetTextColor(0.4, 1, 0.4, 1)
+
+    -- Track last saved value to avoid duplicate saves
+    customPagedEditBox._lastSavedValue = nil
+    customPagedEditBox._pendingRescan = nil
+
+    -- Function to save the custom paged keybind (with dedup and debounced rescan)
+    local function SaveCustomPagedKeybind()
+        local value = customPagedEditBox:GetText()
+        -- Only save if value actually changed
+        if value == customPagedEditBox._lastSavedValue then
+            return
+        end
+        customPagedEditBox._lastSavedValue = value
+        MedaBinds.db.options.customPagedKeybind = value
+        customPagedSavedText:SetText("Saved!")
+
+        -- Cancel any pending rescan
+        if customPagedEditBox._pendingRescan then
+            customPagedEditBox._pendingRescan:Cancel()
+        end
+
+        -- Debounce and use light rescan to avoid freezing
+        customPagedEditBox._pendingRescan = C_Timer.NewTimer(0.1, function()
+            MedaBinds.KeybindScanner:RebuildPagedKeybinds()
+            customPagedEditBox._pendingRescan = nil
+        end)
+
+        -- Update preview
+        if frame.UpdatePagedPreview then frame.UpdatePagedPreview() end
+
+        C_Timer.After(2, function()
+            if customPagedSavedText then
+                customPagedSavedText:SetText("")
+            end
+        end)
+    end
+
+    -- Save on Enter press
+    customPagedEditBox.OnEnterPressed = function(_, text)
+        SaveCustomPagedKeybind()
+    end
+
+    -- Also save on focus lost by hooking the inner editBox
+    customPagedEditBox.editBox:HookScript("OnEditFocusLost", function()
+        SaveCustomPagedKeybind()
+    end)
 
     -- Help text
     rightY = rightY - 42
     local helpText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
     helpText:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
-    helpText:SetText("For macro-based paging (e.g. Q)")
+    helpText:SetText("e.g. Q shows Q>E, empty shows >E")
     helpText:SetTextColor(unpack(MedaUI.Theme.textDim))
+    rightY = rightY - 20
+
+    -- Preview section
+    local previewLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    previewLabel:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    previewLabel:SetText("Preview:")
+    previewLabel:SetTextColor(unpack(MedaUI.Theme.text))
+    rightY = rightY - 22
+
+    local pagedPreviewBg = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+    pagedPreviewBg:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN + 5, rightY)
+    pagedPreviewBg:SetSize(160, 60)
+    pagedPreviewBg:SetBackdrop({
+        bgFile = "Interface\\Buttons\\WHITE8x8",
+        edgeFile = "Interface\\Buttons\\WHITE8x8",
+        edgeSize = 1,
+    })
+    pagedPreviewBg:SetBackdropColor(0.05, 0.05, 0.05, 1)
+    pagedPreviewBg:SetBackdropBorderColor(unpack(MedaUI.Theme.border))
+
+    -- Sample icon background
+    local pagedIconBg = pagedPreviewBg:CreateTexture(nil, "ARTWORK")
+    pagedIconBg:SetSize(36, 36)
+    pagedIconBg:SetPoint("CENTER", pagedPreviewBg, "CENTER", 0, 0)
+    pagedIconBg:SetTexture("Interface\\AddOns\\MedaBinds\\Media\\binding-chain")
+
+    -- Preview keybind text
+    local pagedPreviewText = pagedPreviewBg:CreateFontString(nil, "OVERLAY")
+    pagedPreviewText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+    pagedPreviewText:SetPoint("TOPRIGHT", pagedIconBg, "TOPRIGHT", -2, -2)
+    pagedPreviewText:SetText(">E")
+    frame.pagedPreviewText = pagedPreviewText
+
+    -- Function to update the paged keybind preview
+    local function UpdatePagedPreview()
+        local options = MedaBinds.db and MedaBinds.db.options or {}
+        local separator = options.pagedKeybindSeparator or ">"
+        local customKey = options.customPagedKeybind or ""
+        local pagedColor = options.pagedKeybindColor or { r = 0.7, g = 0.7, b = 0.9, a = 1 }
+
+        -- Build preview text: "Q>E" or ">E"
+        local previewStr
+        if customKey ~= "" then
+            previewStr = customKey .. separator .. "E"
+        else
+            previewStr = separator .. "E"
+        end
+
+        pagedPreviewText:SetText(previewStr)
+        pagedPreviewText:SetTextColor(pagedColor.r, pagedColor.g, pagedColor.b, pagedColor.a or 1)
+    end
+    frame.UpdatePagedPreview = UpdatePagedPreview
 
     frame.Refresh = function()
         essentialCheck:SetChecked(MedaBinds.db.options.showOnEssential)
@@ -1382,30 +1404,23 @@ CreateOptionsTab = function(parent)
 
         -- Paged keybind settings
         showPagedCheck:SetChecked(MedaBinds.db.options.showPagedKeybinds)
-        pagedFormatDropdown:SetSelected(MedaBinds.db.options.pagedKeybindFormat or "auto")
-        local customPrefixValue = MedaBinds.db.options.customPagePrefix or ""
-        customPrefixEditBox:SetText(customPrefixValue)
-        customPrefixEditBox._lastSavedValue = customPrefixValue
-        -- Show/hide custom prefix based on format
-        if MedaBinds.db.options.pagedKeybindFormat == "custom" then
-            customPrefixLabel:Show()
-            customPrefixEditBox:Show()
-            customPrefixSavedText:Show()
-        else
-            customPrefixLabel:Hide()
-            customPrefixEditBox:Hide()
-            customPrefixSavedText:Hide()
-        end
+
         -- Paged color picker
         local pagedColor = MedaBinds.db.options.pagedKeybindColor or { r = 0.7, g = 0.7, b = 0.9, a = 1 }
         pagedColorPicker:SetColor(pagedColor.r, pagedColor.g, pagedColor.b, pagedColor.a or 1)
 
-        -- Page switch key override
-        if frame.pageSwitchEditBox then
-            local value = MedaBinds.db.options.pageKeybindOverride or ""
-            frame.pageSwitchEditBox:SetText(value)
-            frame.pageSwitchEditBox._lastSavedValue = value
-        end
+        -- Separator
+        local separatorValue = MedaBinds.db.options.pagedKeybindSeparator or ">"
+        separatorEditBox:SetText(separatorValue)
+        separatorEditBox._lastSavedValue = separatorValue
+
+        -- Custom paged keybind
+        local customPagedValue = MedaBinds.db.options.customPagedKeybind or ""
+        customPagedEditBox:SetText(customPagedValue)
+        customPagedEditBox._lastSavedValue = customPagedValue
+
+        -- Update preview
+        UpdatePagedPreview()
 
         modifierDropdown:SetSelected(MedaBinds.db.options.configModifierKey)
         combatDisableCheck:SetChecked(MedaBinds.db.options.autoDisableInCombat)

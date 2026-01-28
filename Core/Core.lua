@@ -62,11 +62,10 @@ local DEFAULT_DB = {
         scanMacros = true,
 
         -- Paged keybind settings
-        showPagedKeybinds = true,           -- Enable/disable paged keybind detection
-        pagedKeybindFormat = "auto",        -- "auto", "pagenum", "custom"
-        customPagePrefix = "",              -- Custom prefix for paged keybinds (e.g., "Q→")
+        showPagedKeybinds = false,          -- Enable/disable paged keybind detection (off by default)
+        pagedKeybindSeparator = ">",        -- Separator between page key and slot key (e.g., ">")
+        customPagedKeybind = "",            -- Custom page switch key (e.g., "Q" shows "Q>E")
         pagedKeybindColor = { r = 0.7, g = 0.7, b = 0.9, a = 1 },  -- Light blue-ish tint for paged keybinds
-        pageKeybindOverride = "",           -- Manual page switch key for macro-based paging (e.g., "Q")
 
         -- Config mode
         configModifierKey = "ALT",
