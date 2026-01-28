@@ -1368,14 +1368,16 @@ CreateOptionsTab = function(parent)
 
     -- Preview keybind text
     local pagedPreviewText = pagedPreviewBg:CreateFontString(nil, "OVERLAY")
-    pagedPreviewText:SetFont("Fonts\\FRIZQT__.TTF", 11, "OUTLINE")
+    pagedPreviewText:SetFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
     pagedPreviewText:SetPoint("TOPRIGHT", pagedIconBg, "TOPRIGHT", -2, -2)
     pagedPreviewText:SetText(">E")
     frame.pagedPreviewText = pagedPreviewText
 
     -- Function to update the paged keybind preview
+    -- Uses global style for font/position but paged color for text
     local function UpdatePagedPreview()
         local options = MedaBinds.db and MedaBinds.db.options or {}
+        local style = MedaBinds.db.globalStyle or {}
         local separator = options.pagedKeybindSeparator or ">"
         local customKey = options.customPagedKeybind or ""
         local pagedColor = options.pagedKeybindColor or { r = 0.7, g = 0.7, b = 0.9, a = 1 }
@@ -1388,8 +1390,33 @@ CreateOptionsTab = function(parent)
             previewStr = separator .. "E"
         end
 
-        pagedPreviewText:SetText(previewStr)
+        -- Apply global style font settings
+        local fontPath = style.font or "Fonts\\FRIZQT__.TTF"
+        local fontSize = style.fontSize or 12
+        local fontFlags = style.fontFlags or "OUTLINE"
+        pagedPreviewText:SetFont(fontPath, fontSize, fontFlags)
+
+        -- Apply paged color (not global color)
         pagedPreviewText:SetTextColor(pagedColor.r, pagedColor.g, pagedColor.b, pagedColor.a or 1)
+
+        -- Apply global style shadow settings
+        if style.shadowEnabled then
+            local shadowColor = style.shadowColor or { r = 0, g = 0, b = 0, a = 1 }
+            local shadowOffset = style.shadowOffset or { x = 1, y = -1 }
+            pagedPreviewText:SetShadowColor(shadowColor.r, shadowColor.g, shadowColor.b, shadowColor.a or 1)
+            pagedPreviewText:SetShadowOffset(shadowOffset.x, shadowOffset.y)
+        else
+            pagedPreviewText:SetShadowOffset(0, 0)
+        end
+
+        -- Apply global style position settings
+        pagedPreviewText:ClearAllPoints()
+        local anchor = style.anchor or "TOPRIGHT"
+        local offsetX = style.offsetX or -2
+        local offsetY = style.offsetY or -2
+        pagedPreviewText:SetPoint(anchor, pagedIconBg, anchor, offsetX, offsetY)
+
+        pagedPreviewText:SetText(previewStr)
     end
     frame.UpdatePagedPreview = UpdatePagedPreview
 
