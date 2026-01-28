@@ -134,6 +134,9 @@ local function CreatePanel()
         minHeight = 450,
     })
 
+    -- Add addon icon watermark
+    panel:SetAddonIcon("Interface\\AddOns\\MedaBinds\\Media\\binding-chain")
+
     -- Allow ESC to close the panel
     tinsert(UISpecialFrames, "MedaBindsSettingsPanel")
 
