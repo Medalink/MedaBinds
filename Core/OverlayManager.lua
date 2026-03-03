@@ -97,6 +97,12 @@ end
 local function UpdateIconOverlay(icon, viewerName)
     if not icon then return end
 
+    -- During combat, don't update keybind overlays to prevent page-change issues
+    -- The existing cached display will remain until combat ends
+    if InCombatLockdown() then
+        return
+    end
+
     -- Check if this viewer type is enabled
     local optionKey = VIEWER_OPTIONS[viewerName]
     if optionKey and MedaBinds.db and not MedaBinds.db.options[optionKey] then
@@ -719,15 +725,26 @@ function OverlayManager:Initialize()
         self:ReconnectExternalIcons()
     end)
 
-    -- Also reconnect on PLAYER_ENTERING_WORLD (some addons create frames on this event)
+    -- Create event frame for combat tracking and world events
     local eventFrame = CreateFrame("Frame")
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-    eventFrame:SetScript("OnEvent", function(self, event, isInitialLogin, isReloadingUI)
-        -- Delay slightly to let other addons finish their initialization
-        C_Timer.After(1, function()
-            MedaBinds:Debug("OverlayManager: PLAYER_ENTERING_WORLD - checking external icons")
-            OverlayManager:DoReconnectExternalIcons()
-        end)
+    eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")  -- Combat ended
+    eventFrame:SetScript("OnEvent", function(self, event, ...)
+        if event == "PLAYER_ENTERING_WORLD" then
+            local isInitialLogin, isReloadingUI = ...
+            -- Delay slightly to let other addons finish their initialization
+            C_Timer.After(1, function()
+                MedaBinds:Debug("OverlayManager: PLAYER_ENTERING_WORLD - checking external icons")
+                OverlayManager:DoReconnectExternalIcons()
+            end)
+        elseif event == "PLAYER_REGEN_ENABLED" then
+            -- Combat ended - refresh all overlays to restore correct keybind display
+            MedaBinds:Debug("OverlayManager: Combat ended - refreshing overlays")
+            C_Timer.After(0.1, function()
+                OverlayManager:RefreshAllOverlays()
+                OverlayManager:RefreshAllExternalOverlays()
+            end)
+        end
     end)
 
     MedaBinds:Debug("OverlayManager: Initialized")
@@ -850,6 +867,11 @@ end
 
 -- Refresh an external icon overlay
 function OverlayManager:RefreshExternalOverlay(uniqueKey, frame)
+    -- During combat, don't update external overlays to prevent page-change issues
+    if InCombatLockdown() then
+        return
+    end
+
     local overlayData = externalOverlays[uniqueKey]
     local entry = MedaBinds.db.externalIcons[uniqueKey]
 

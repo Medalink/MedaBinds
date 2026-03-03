@@ -217,8 +217,8 @@ CreateGlobalStylesTab = function(parent)
     -- ============================================
 
     -- FONT SECTION
-    local fontHeader, fontLine = MedaUI:CreateSectionHeader(frame, "Font Settings", COLUMN_WIDTH)
-    fontHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -10)
+    local fontSection = MedaUI:CreateSectionHeader(frame, "Font Settings", COLUMN_WIDTH)
+    fontSection:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -10)
 
     -- Font dropdown
     local fontLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -266,8 +266,8 @@ CreateGlobalStylesTab = function(parent)
     frame.flagsDropdown = flagsDropdown
 
     -- POSITION SECTION
-    local posHeader, posLine = MedaUI:CreateSectionHeader(frame, "Position", COLUMN_WIDTH)
-    posHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -225)
+    local posSection = MedaUI:CreateSectionHeader(frame, "Position", COLUMN_WIDTH)
+    posSection:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, -225)
 
     -- Anchor dropdown
     local anchorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -325,8 +325,8 @@ CreateGlobalStylesTab = function(parent)
     -- ============================================
 
     -- APPEARANCE SECTION
-    local appearanceHeader, appearanceLine = MedaUI:CreateSectionHeader(frame, "Appearance", COLUMN_WIDTH)
-    appearanceHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN, -10)
+    local appearanceSection = MedaUI:CreateSectionHeader(frame, "Appearance", COLUMN_WIDTH)
+    appearanceSection:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN, -10)
 
     -- Text Color picker
     local colorLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -354,8 +354,8 @@ CreateGlobalStylesTab = function(parent)
     frame.shadowCheck = shadowCheck
 
     -- PREVIEW SECTION
-    local previewHeader, previewLine = MedaUI:CreateSectionHeader(frame, "Preview", COLUMN_WIDTH)
-    previewHeader:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN, -120)
+    local previewSection = MedaUI:CreateSectionHeader(frame, "Preview", COLUMN_WIDTH)
+    previewSection:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN, -120)
 
     local previewBg = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     previewBg:SetPoint("TOPLEFT", frame, "TOPLEFT", RIGHT_COLUMN, -150)
