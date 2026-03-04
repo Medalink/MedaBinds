@@ -7,7 +7,7 @@
 ## IconTexture: Interface\AddOns\MedaBinds\Media\binding-chain
 ## X-Wago-ID: bGoy5Y60
 ## X-Curse-Project-ID: 1447056
-## Dependencies: MedaUI
+## Dependencies: AbstractFramework
 
 # Embedded Libraries
 Libs\MedaUI\MedaUI.xml
