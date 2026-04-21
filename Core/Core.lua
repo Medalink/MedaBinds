@@ -9,6 +9,8 @@ _G.MedaBinds = MedaBinds
 
 -- Addon version
 MedaBinds.version = "1.0.0"
+local MedaUI = LibStub("MedaUI-2.0", true)
+local logger
 
 -- Default database schema
 local DEFAULT_DB = {
@@ -76,6 +78,13 @@ local DEFAULT_DB = {
 
         -- Theme (nil = use default)
         theme = nil,
+
+        logging = {
+            enabled = true,
+            minLevel = "WARN",
+            combatMode = "always",
+            chatFallback = false,
+        },
     },
 
     -- Minimap button position (LibDBIcon format)
@@ -113,7 +122,83 @@ local function InitializeDB()
         end
     end
 
+    if MedaUI and MedaUI.NormalizeLogPolicy then
+        MedaBindsDB.options.logging = MedaUI:NormalizeLogPolicy(MedaBindsDB.options.logging)
+    end
+
     MedaBinds.db = MedaBindsDB
+end
+
+local function GetLoggingPolicy()
+    if MedaUI and MedaUI.NormalizeLogPolicy and MedaBinds.db and MedaBinds.db.options then
+        return MedaUI:NormalizeLogPolicy(MedaBinds.db.options.logging)
+    end
+
+    return {
+        enabled = true,
+        minLevel = MedaBinds.debug and "DEBUG" or "WARN",
+        combatMode = "always",
+        chatFallback = false,
+    }
+end
+
+local function UpdateDebugFlag()
+    local policy = GetLoggingPolicy()
+    MedaBinds.debug = policy.enabled ~= false and policy.minLevel == "DEBUG"
+    return MedaBinds.debug
+end
+
+local function SetLoggingPolicy(policy)
+    if not MedaBinds.db or not MedaBinds.db.options then
+        return GetLoggingPolicy()
+    end
+
+    local normalized = MedaUI and MedaUI.NormalizeLogPolicy and MedaUI:NormalizeLogPolicy(policy) or policy
+    MedaBinds.db.options.logging = normalized
+    UpdateDebugFlag()
+    return normalized
+end
+
+local function EnsureLogger()
+    if not MedaUI or not MedaUI.CreateAddonLogger then
+        return nil
+    end
+
+    if not logger then
+        logger = MedaUI:CreateAddonLogger({
+            addonName = "MedaBinds",
+            color = { 0.0, 1.0, 0.0 },
+            prefix = "[MedaBinds]",
+            getPolicy = GetLoggingPolicy,
+            setPolicy = SetLoggingPolicy,
+        })
+    end
+
+    return logger
+end
+
+function MedaBinds:GetLogPolicy()
+    return GetLoggingPolicy()
+end
+
+function MedaBinds:SetLogPolicy(policy)
+    return SetLoggingPolicy(policy)
+end
+
+function MedaBinds:CanLog(level)
+    local activeLogger = EnsureLogger()
+    return activeLogger and activeLogger:CanEmit(level or "INFO") or false
+end
+
+function MedaBinds:SetDebugMode(enabled)
+    local policy = GetLoggingPolicy()
+    policy.minLevel = enabled and "DEBUG" or "WARN"
+    SetLoggingPolicy(policy)
+    return self.debug
+end
+
+function MedaBinds:IsDebugModeEnabled()
+    return self.debug == true
 end
 
 -- Get a style value (per-spell override or global default)
@@ -186,7 +271,7 @@ local function SlashCommandHandler(msg)
         StaticPopup_Show("MEDABINDS_RESET_CONFIRM")
     elseif cmd == "debug" then
         -- Toggle debug mode
-        MedaBinds.debug = not MedaBinds.debug
+        MedaBinds:SetDebugMode(not MedaBinds.debug)
         print("|cFF00FF00MedaBinds:|r Debug mode " .. (MedaBinds.debug and "enabled" or "disabled"))
     elseif cmd == "debugscan" then
         -- Debug: scan and print found icon frames
@@ -218,6 +303,10 @@ StaticPopupDialogs["MEDABINDS_RESET_CONFIRM"] = {
     OnAccept = function()
         MedaBindsDB = CopyTable(DEFAULT_DB)
         MedaBinds.db = MedaBindsDB
+        if MedaUI and MedaUI.NormalizeLogPolicy then
+            MedaBindsDB.options.logging = MedaUI:NormalizeLogPolicy(MedaBindsDB.options.logging)
+        end
+        UpdateDebugFlag()
 
         -- Refresh overlays
         if MedaBinds.OverlayManager then
@@ -234,19 +323,24 @@ StaticPopupDialogs["MEDABINDS_RESET_CONFIRM"] = {
 
 -- Debug print helper
 function MedaBinds:Debug(...)
-    if self.debug then
-        local msg = ""
-        for i = 1, select("#", ...) do
-            local v = select(i, ...)
-            msg = msg .. (i > 1 and " " or "") .. tostring(v)
-        end
-        -- Use MedaDebug if available, otherwise fall back to print
-        if MedaDebugAPI then
-            MedaDebugAPI:DebugMsg("MedaBinds", msg)
-        else
-            print("|cFF00FF00MedaBinds Debug:|r", msg)
-        end
+    if not self.debug then
+        return
     end
+
+    local activeLogger = EnsureLogger()
+    if not activeLogger or not activeLogger:CanEmit("DEBUG") then
+        return
+    end
+
+    local argCount = select("#", ...)
+    local args = { ... }
+    activeLogger:EmitLazy("DEBUG", function()
+        local parts = {}
+        for index = 1, argCount do
+            parts[#parts + 1] = tostring(args[index])
+        end
+        return table.concat(parts, " ")
+    end)
 end
 
 -- Event handlers
@@ -255,6 +349,10 @@ local function OnAddonLoaded(self, event, loadedAddon)
 
     -- Initialize database
     InitializeDB()
+    UpdateDebugFlag()
+    if EnsureLogger() then
+        logger:RefreshSink()
+    end
 
     -- Register slash commands
     SLASH_MEDABINDS1 = "/medab"
@@ -268,8 +366,11 @@ local function OnAddonLoaded(self, event, loadedAddon)
 end
 
 local function OnPlayerLogin(self, event)
+    if EnsureLogger() then
+        logger:RefreshSink()
+    end
+
     -- Restore saved theme
-    local MedaUI = LibStub("MedaUI-1.0", true)
     if MedaUI and MedaBinds.db.options.theme then
         MedaUI:SetTheme(MedaBinds.db.options.theme)
     end

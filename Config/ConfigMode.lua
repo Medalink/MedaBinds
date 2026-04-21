@@ -10,7 +10,7 @@ local ConfigMode = {}
 MedaBinds.ConfigMode = ConfigMode
 
 -- Get MedaUI library for theming and widgets
-local MedaUI = LibStub("MedaUI-1.0")
+local MedaUI = LibStub("MedaUI-2.0")
 
 -- State
 local isConfigModeActive = false

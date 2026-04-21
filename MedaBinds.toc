@@ -2,12 +2,12 @@
 ## Title: MedaBinds
 ## Notes: Keybind overlay for Blizzard's Cooldown Manager (EssentialCooldownViewer, UtilityCooldownViewer)
 ## Author: Medalink
-## Version: 1.0.1
+## Version: @project-version@
 ## SavedVariables: MedaBindsDB
 ## IconTexture: Interface\AddOns\MedaBinds\Media\binding-chain
 ## X-Wago-ID: bGoy5Y60
 ## X-Curse-Project-ID: 1447056
-## Dependencies: AbstractFramework
+## OptionalDeps: MedaDebug
 
 # Embedded Libraries
 Libs\MedaUI\MedaUI.xml

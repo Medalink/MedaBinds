@@ -15,7 +15,8 @@ local PANEL_WIDTH = 650
 local PANEL_HEIGHT = 550
 
 -- Get MedaUI library
-local MedaUI = LibStub("MedaUI-1.0")
+local MedaUI = LibStub("MedaUI-2.0")
+local Pixel = MedaUI.Pixel
 
 -- Available fonts (built-in WoW fonts + common addon fonts)
 local BUILTIN_FONTS = {
@@ -544,16 +545,14 @@ CreateConfiguredIconsTab = function(parent)
         end
     end)
 
-    -- Scroll frame for icon list (using standard WoW scroll frame)
-    local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetPoint("TOPLEFT", frame, "TOPLEFT", 10, -45)
-    scrollFrame:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -26, 80)
+    -- Scroll frame for icon list (AF custom scrollbar)
+    local scrollParent = MedaUI:CreateScrollFrame(frame)
+    Pixel.SetPoint(scrollParent, "TOPLEFT", frame, "TOPLEFT", 10, -45)
+    Pixel.SetPoint(scrollParent, "BOTTOMRIGHT", frame, "BOTTOMRIGHT", -10, 80)
+    scrollParent:SetScrollStep(66)
 
-    local scrollChild = CreateFrame("Frame", nil, scrollFrame)
-    scrollChild:SetSize(PANEL_WIDTH - 60, 1)
-    scrollFrame:SetScrollChild(scrollChild)
-    frame.scrollChild = scrollChild
-    frame.scrollFrame = scrollFrame
+    frame.scrollChild = scrollParent.scrollContent
+    frame.scrollParent = scrollParent
 
     -- Info text
     local infoText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
@@ -1168,6 +1167,24 @@ CreateOptionsTab = function(parent)
     })
     themeSelector:SetPoint("TOPLEFT", themeLabel, "BOTTOMLEFT", 0, -4)
     frame.themeSelector = themeSelector
+    leftY = leftY - 90
+
+    local loggingTitle = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+    loggingTitle:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN, leftY)
+    loggingTitle:SetText("Logging")
+    loggingTitle:SetTextColor(unpack(MedaUI.Theme.gold))
+    leftY = leftY - 28
+
+    local logPolicyControls = MedaUI:BuildLogPolicyControls(frame, function()
+        return MedaBinds:GetLogPolicy()
+    end, function(policy)
+        MedaBinds:SetLogPolicy(policy)
+    end, {
+        width = 220,
+        includeChatFallback = true,
+    })
+    logPolicyControls:SetPoint("TOPLEFT", frame, "TOPLEFT", LEFT_COLUMN + 5, leftY)
+    frame.logPolicyControls = logPolicyControls
 
     -- ============================================
     -- RIGHT COLUMN
@@ -1455,6 +1472,9 @@ CreateOptionsTab = function(parent)
         modifierDropdown:SetSelected(MedaBinds.db.options.configModifierKey)
         combatDisableCheck:SetChecked(MedaBinds.db.options.autoDisableInCombat)
         minimapCheck:SetChecked(MedaBinds.db.options.showMinimapButton)
+        if frame.logPolicyControls then
+            frame.logPolicyControls:Refresh()
+        end
         -- Theme selector refreshes itself automatically
     end
 
