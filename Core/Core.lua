@@ -263,8 +263,12 @@ local function SlashCommandHandler(msg)
     elseif cmd == "scan" then
         -- Force rescan keybinds
         if MedaBinds.KeybindScanner then
-            MedaBinds.KeybindScanner:ForceRescan()
-            print("|cFF00FF00MedaBinds:|r Keybinds rescanned.")
+            local scanned = MedaBinds.KeybindScanner:ForceRescan()
+            if scanned == false then
+                print("|cFF00FF00MedaBinds:|r Keybind rescan queued until combat ends.")
+            else
+                print("|cFF00FF00MedaBinds:|r Keybinds rescanned.")
+            end
         end
     elseif cmd == "reset" then
         -- Reset all settings with confirmation

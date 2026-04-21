@@ -513,8 +513,17 @@ CreateConfiguredIconsTab = function(parent)
             local startTime = debugprofilestop()
 
             -- Perform the scan
+            local scanned = true
             if MedaBinds.KeybindScanner then
-                MedaBinds.KeybindScanner:ForceRescan()
+                scanned = MedaBinds.KeybindScanner:ForceRescan()
+            end
+
+            if scanned == false then
+                if frame.scanStatus then
+                    frame.scanStatus:SetText("Queued until combat ends")
+                    frame.scanStatus:SetTextColor(unpack(MedaUI.Theme.textDim))
+                end
+                return
             end
 
             local endTime = debugprofilestop()

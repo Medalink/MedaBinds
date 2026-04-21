@@ -504,6 +504,8 @@ local function BuildTrinketKeybinds()
     end
 end
 
+local RequestScan
+
 -- Light rescan - only rebuild paged keybind data (for settings changes)
 function KeybindScanner:RebuildPagedKeybinds()
     BuildPageKeybindCache()
@@ -844,7 +846,15 @@ end
 
 -- Force a complete rescan
 function KeybindScanner:ForceRescan()
+    if InCombatLockdown and InCombatLockdown() then
+        if RequestScan then
+            RequestScan(true)
+        end
+        return false
+    end
+
     self:FullScan()
+    return true
 end
 
 -- Get count of cached keybinds
@@ -945,7 +955,7 @@ local function DoScan()
     KeybindScanner:FullScan()
 end
 
-local function RequestScan(immediate)
+RequestScan = function(immediate)
     -- Skip during combat - keybinds can't be changed anyway
     if InCombatLockdown() then
         scanRequestedInCombat = true
