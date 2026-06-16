@@ -8,7 +8,7 @@ local addonName, MedaBinds = ...
 _G.MedaBinds = MedaBinds
 
 -- Addon version
-MedaBinds.version = "1.0.0"
+MedaBinds.version = "1.0.4"
 local MedaUI = LibStub("MedaUI-2.0", true)
 local logger
 
